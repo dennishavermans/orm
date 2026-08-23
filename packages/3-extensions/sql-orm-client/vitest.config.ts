@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    ...(process.env['CI'] ? { isolate: false } : {}),
+    isolate: false,
     testTimeout: timeouts.typeScriptCompilation,
     hookTimeout: timeouts.default,
     typecheck: {
