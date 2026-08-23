@@ -193,18 +193,15 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - name: Install dependencies (skip bin linking)
+      - name: Install, build, link bins, and start cloudflare-worker Postgres
         if: needs.changes.outputs.inert != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Build packages (restored from Turbo cache; needed for bin linking)
-        if: needs.changes.outputs.inert != 'true'
-        run: pnpm build
-      - name: Link bins
-        if: needs.changes.outputs.inert != 'true'
-        run: pnpm install --frozen-lockfile
-      - name: Start cloudflare-worker Postgres (5433, pg_stat_statements)
-        if: needs.changes.outputs.inert != 'true'
-        run: pnpm --filter prisma-8-cloudflare-worker db:up
+        run: |
+          pnpm --filter prisma-8-cloudflare-worker db:up &
+          cloudflare_db_pid=$!
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm build
+          pnpm install --frozen-lockfile
+          wait "$cloudflare_db_pid"
       - name: Test packages with coverage
         if: needs.changes.outputs.inert != 'true'
         run: pnpm coverage:packages
