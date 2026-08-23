@@ -14,7 +14,7 @@
     "test:all": "pnpm test:packages && pnpm test:examples && pnpm test:integration && pnpm test:e2e",
     "test:packages": "turbo run build --filter='!./examples/**' --filter='!./test/**' && vitest run",
     "test:packages:agent": "node scripts/run-logged.mjs test-packages pnpm test:packages",
-    "test:examples": "turbo run test --filter='./examples/**' --continue",
+    "test:examples": "turbo run test --filter='./examples/**' --continue --concurrency=4",
     "test:e2e": "pnpm --filter e2e-tests test",
     "test:e2e:agent": "node scripts/run-logged.mjs test-e2e pnpm test:e2e",
     "test:integration": "pnpm --filter integration-tests test",

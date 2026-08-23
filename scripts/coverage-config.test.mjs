@@ -255,6 +255,10 @@ describe('coverage config', () => {
     );
     assert.equal(rootManifest.scripts['test:coverage'], 'pnpm coverage:packages');
     assert.equal(rootManifest.scripts['coverage:report'], 'node scripts/coverage-report.mjs');
+    assert.equal(
+      rootManifest.scripts['test:examples'],
+      "turbo run test --filter='./examples/**' --continue --concurrency=4",
+    );
 
     for await (const path of glob('packages/**/package.json', { cwd: repositoryRoot })) {
       const manifest = JSON.parse(await readFile(join(repositoryRoot, path), 'utf8'));
@@ -280,7 +284,7 @@ describe('coverage config', () => {
 
     assert.ok(testJob);
     assert.match(testJob, /^ {4}name: Test$/m);
-    assert.match(testJob, /^ {6}NODE_COMPILE_CACHE: \/dev\/shm\/prisma-test-node-compile-cache$/m);
+    assert.match(testJob, /^ {6}NODE_COMPILE_CACHE: \/tmp\/prisma-test-node-compile-cache$/m);
     assert.match(
       testJob,
       /run: pnpm coverage:packages\n {6}- name: Report package coverage\n {8}if: \$\{\{ !cancelled\(\) && needs\.changes\.outputs\.inert != 'true' \}\}\n {8}run: pnpm coverage:report/,
