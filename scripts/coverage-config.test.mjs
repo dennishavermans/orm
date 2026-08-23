@@ -272,6 +272,16 @@ describe('coverage config', () => {
     assert.match(rootVitestConfig, /reportOnFailure:\s*true/);
   });
 
+  it('reuses the stateless SQL ORM client worker on CI', async () => {
+    const repositoryRoot = join(import.meta.dirname, '..');
+    const config = await readFile(
+      join(repositoryRoot, 'packages/3-extensions/sql-orm-client/vitest.config.ts'),
+      'utf8',
+    );
+
+    assert.match(config, /\.\.\.\(process\.env\['CI'\] \? \{ isolate: false \} : \{\}\)/);
+  });
+
   it('combines package tests and coverage in one CI job', async () => {
     const repositoryRoot = join(import.meta.dirname, '..');
     const workflow = await readFile(join(repositoryRoot, '.github/workflows/ci.yml'), 'utf8');
