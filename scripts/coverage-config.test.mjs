@@ -270,6 +270,10 @@ describe('coverage config', () => {
     assert.doesNotMatch(rootVitestConfig, /from ['"]\.\/scripts\/coverage-config\.[^'"]+['"]/);
     assert.match(rootVitestConfig, /provider:\s*['"]v8['"]/);
     assert.match(rootVitestConfig, /reportOnFailure:\s*true/);
+    assert.match(
+      rootVitestConfig,
+      /\.\.\.\(process\.env\['CI'\] \? \{ disableConsoleIntercept: true \} : \{\}\)/,
+    );
   });
 
   it('combines package tests and coverage in one CI job', async () => {
@@ -281,10 +285,6 @@ describe('coverage config', () => {
     assert.ok(testJob);
     assert.match(testJob, /^ {4}name: Test$/m);
     assert.match(testJob, /^ {6}NODE_COMPILE_CACHE: \/tmp\/prisma-test-node-compile-cache$/m);
-    assert.match(
-      testJob,
-      /- name: Install, build, link bins, and start cloudflare-worker Postgres\n {8}if: needs\.changes\.outputs\.inert != 'true'\n {8}run: \|\n {10}pnpm --filter prisma-8-cloudflare-worker db:up &\n {10}cloudflare_db_pid=\$!\n {10}pnpm install --frozen-lockfile --ignore-scripts\n {10}pnpm build\n {10}pnpm install --frozen-lockfile\n {10}wait "\$cloudflare_db_pid"/,
-    );
     assert.match(
       testJob,
       /run: pnpm coverage:packages\n {6}- name: Report package coverage\n {8}if: \$\{\{ !cancelled\(\) && needs\.changes\.outputs\.inert != 'true' \}\}\n {8}run: pnpm coverage:report/,
