@@ -5,7 +5,6 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    isolate: false,
     testTimeout: timeouts.typeScriptCompilation,
     hookTimeout: timeouts.default,
     typecheck: {

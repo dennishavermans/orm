@@ -272,16 +272,6 @@ describe('coverage config', () => {
     assert.match(rootVitestConfig, /reportOnFailure:\s*true/);
   });
 
-  it('reuses workers for the stateless SQL ORM client', async () => {
-    const repositoryRoot = join(import.meta.dirname, '..');
-    const config = await readFile(
-      join(repositoryRoot, 'packages/3-extensions/sql-orm-client/vitest.config.ts'),
-      'utf8',
-    );
-
-    assert.match(config, /^ {4}isolate: false,$/m);
-  });
-
   it('combines package tests and coverage in one CI job', async () => {
     const repositoryRoot = join(import.meta.dirname, '..');
     const workflow = await readFile(join(repositoryRoot, '.github/workflows/ci.yml'), 'utf8');
@@ -290,7 +280,7 @@ describe('coverage config', () => {
 
     assert.ok(testJob);
     assert.match(testJob, /^ {4}name: Test$/m);
-    assert.match(testJob, /^ {6}NODE_COMPILE_CACHE: \/tmp\/prisma-test-node-compile-cache$/m);
+    assert.match(testJob, /^ {6}NODE_COMPILE_CACHE: \/dev\/shm\/prisma-test-node-compile-cache$/m);
     assert.match(
       testJob,
       /run: pnpm coverage:packages\n {6}- name: Report package coverage\n {8}if: \$\{\{ !cancelled\(\) && needs\.changes\.outputs\.inert != 'true' \}\}\n {8}run: pnpm coverage:report/,
