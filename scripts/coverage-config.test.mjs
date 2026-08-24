@@ -270,6 +270,7 @@ describe('coverage config', () => {
     assert.doesNotMatch(rootVitestConfig, /from ['"]\.\/scripts\/coverage-config\.[^'"]+['"]/);
     assert.match(rootVitestConfig, /provider:\s*['"]v8['"]/);
     assert.match(rootVitestConfig, /reportOnFailure:\s*true/);
+    assert.match(rootVitestConfig, /vmMemoryLimit: process\.env\['CI'\] \? '2GB' : undefined/);
   });
 
   it('combines package tests and coverage in one CI job', async () => {
