@@ -272,7 +272,7 @@ describe('coverage config', () => {
     assert.match(rootVitestConfig, /reportOnFailure:\s*true/);
     assert.match(
       rootVitestConfig,
-      /\.\.\.\(process\.env\['CI'\] \? \{ disableConsoleIntercept: true \} : \{\}\)/,
+      /\.\.\.\(process\.env\['CI'\] \? \{ experimental: \{ diagnostics: false \} \} : \{\}\)/,
     );
   });
 
