@@ -14,7 +14,7 @@ Canonical channels:
 
 ## When to Use
 
-- A capability-gap entry from another `prisma-next-*` skill fired and the user said *"yes, file the feature request"*.
+- A capability-gap entry from another Prisma Next skill (`prisma-orm-*`) fired and the user said *"yes, file the feature request"*.
 - User says *"this is a bug"*, *"file this"*, *"report this"*, *"file an issue against PN"*, *"send feedback"*, *"this should be a feature"*.
 - User describes an unexpected behaviour — wrong exit code, error message that didn't match what happened, type signature that doesn't match runtime behaviour, planner refused a migration that looked safe — and wants it on the framework team's radar.
 - User asks *"can I ask the Prisma team about this?"*, *"is there somewhere I can talk to the team?"*, *"is this the intended way to do X?"*, *"how should I integrate <my extension / my tool> with PN?"*, or any other open-ended Q&A or design-feedback prompt — including extension authors asking integration questions.
@@ -42,7 +42,7 @@ The user wants to hand something off to the team. Which channel?
 
 - The user describes a concrete bug (see *Classify* below for the bug-vs-feature split).
 - The user has a concrete feature request — a named capability, a specific API shape, a specific CLI flag — that they want on the backlog.
-- A capability-gap entry from another `prisma-next-*` skill routed them here for a feature request.
+- A capability-gap entry from another Prisma Next skill (`prisma-orm-*`) routed them here for a feature request.
 
 **Prisma Discord** (<https://pris.ly/discord>) if any of:
 

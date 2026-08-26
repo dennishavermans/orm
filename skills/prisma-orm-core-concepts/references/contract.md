@@ -6,8 +6,8 @@
 The data contract is the single source of truth for your data layer. You edit a contract source — `contract.prisma` (PSL, the canonical surface) or `contract.ts` (TypeScript builder) — and the framework derives types, migrations, and runtime configuration from it. The three-step user model:
 
 1. **You edit your data contract.**
-2. **The system plans the migrations for you.** (`references/migrations.md`)
-3. **If you need data migrations, you edit `migration.ts` and execute it.** (`references/migrations.md`)
+2. **The system plans the migrations for you.** (`prisma-orm-migrations/references/migrations.md`)
+3. **If you need data migrations, you edit `migration.ts` and execute it.** (`prisma-orm-migrations/references/migrations.md`)
 
 Behind step 1 the agent runs `prisma contract emit` after every contract edit (or installs the Vite plugin so the bundler runs it on save — see `references/build.md`). Emit reads the contract source through the provider the façade picks based on the file extension of `contract:` in `prisma.config.ts`, then writes two artefacts colocated with the source:
 
@@ -30,12 +30,12 @@ Both files are **emitted artefacts**. Edit the source; never the JSON or `.d.ts`
 
 ## When Not to Use
 
-- User wants to apply a contract change to the DB → `references/migrations.md`.
+- User wants to apply a contract change to the DB → `prisma-orm-migrations/references/migrations.md`.
 - User wants to write a query against the contract → `references/queries.md`.
 - User wants to wire `db.ts` (runtime entry point, middleware, env config) → `references/runtime.md`.
 - User wants the Vite / bundler integration → `references/build.md`.
 - User wants to set up Prisma Next for the first time → `references/quickstart.md`.
-- User wants a deeper read of a single structured error envelope → `references/debug.md`.
+- User wants a deeper read of a single structured error envelope → `references/failure-modes.md`.
 - User wants to file a missing-feature request → `references/feedback.md`.
 
 ## Key Concepts
@@ -343,7 +343,7 @@ model AuditLog {
 }
 ```
 
-A contract-level default can be set via `defaultControlPolicy` on `prismaContract(path, { defaultControlPolicy })`. See `references/migrations.md` for how control policies affect DDL planning.
+A contract-level default can be set via `defaultControlPolicy` on `prismaContract(path, { defaultControlPolicy })`. See `prisma-orm-migrations/references/migrations.md` for how control policies affect DDL planning.
 
 ## Workflow — `@internal/extension-supabase`
 
@@ -384,7 +384,7 @@ Infer captures indexes at full fidelity — expression, partial (`where:`), uniq
 3. **Wrong factory/import path for the TS builder.** `defineContract`, `field`, `model`, `rel` come from `@internal/postgres/contract-builder` (or `@internal/mongo/contract-builder`). Outside the callback overload, the available field constructors are `field.column(...)`, `field.generated(...)`, `field.namedType(...)`.
 4. **Reaching into internal packages from user code.** User-authored files (`prisma.config.ts`, `contract.ts`, `db.ts`, control clients) import only from `@internal/<target>/<subpath>` and `@internal/extension-<name>/<subpath>`. Imports from `@internal/cli/*`, `@internal/family-*`, `@internal/target-*`, `@internal/adapter-*`, `@internal/driver-*`, or `@internal/sql-contract-*` are framework-internal — the façade composes them for you. If a façade subpath you need is missing for your target, see *What Prisma Next doesn't do yet* and route to `references/feedback.md`. The canonical worked examples are `examples/multi-extension-monorepo/app/prisma.config.ts` and `examples/prisma-8-postgis-demo/prisma.config.ts`.
 5. **Confusing the config `extensions` with the TS builder's `extensions`.** Same packs, two surfaces, one field name but two shapes: `defineConfig({ extensions: [pgvector] })` (array of *control* descriptors from `@internal/extension-<name>/control`) versus `defineContract({ extensions: { pgvector } })` (record of *pack* descriptors from `@internal/extension-<name>/pack`).
-6. **Renaming a field and expecting the planner to detect it.** Prisma Next has no in-contract rename hint; the planner sees a destructive drop+add. Hand-edit `migration.ts` after `migration plan` (see `references/migrations.md`), or use the keep-then-drop two-migration pattern.
+6. **Renaming a field and expecting the planner to detect it.** Prisma Next has no in-contract rename hint; the planner sees a destructive drop+add. Hand-edit `migration.ts` after `migration plan` (see `prisma-orm-migrations/references/migrations.md`), or use the keep-then-drop two-migration pattern.
 
 ## What Prisma Next doesn't do yet
 

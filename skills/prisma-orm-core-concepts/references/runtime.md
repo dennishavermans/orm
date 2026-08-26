@@ -21,7 +21,7 @@ This skill covers the **runtime entry point** — `db.ts` — and how to compose
 - User is on Supabase — the `supabase()` role-first factory, `asUser(jwt)` / `asAnon()` / `asServiceRole()`, JWT config, RLS → `references/supabase.md`.
 - User wants to edit the contract → `references/contract.md`.
 - User wants to wire Prisma Next into a build tool (Vite plugin, Next.js, …) → `references/build.md`.
-- User wants to debug a connection / runtime error → `references/debug.md`.
+- User wants to debug a connection / runtime error → `references/failure-modes.md`.
 - User wants to file a bug or feature request → `references/feedback.md`.
 
 ## Key Concepts

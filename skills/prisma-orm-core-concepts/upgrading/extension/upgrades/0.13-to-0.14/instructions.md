@@ -320,7 +320,7 @@ override get operations() {
 The colocated script applies this transformation automatically. Run it from your extension root:
 
 ```bash
-pnpm exec tsx .claude/skills/prisma-8/upgrading/extension/upgrades/0.13-to-0.14/migration-op-factories-to-methods.ts
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/extension/upgrades/0.13-to-0.14/migration-op-factories-to-methods.ts
 ```
 
 ## `create-runtime-removed`

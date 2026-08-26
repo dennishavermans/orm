@@ -17,7 +17,7 @@ This reference teaches the model behind migration planning: what the migration g
 
 - Filling placeholders, applying migrations, hash mismatches, drift recovery → `references/migrations.md`.
 - What runs on deploy, environment refs in CI, concurrent-migration conflicts → `references/migration-review.md`.
-- First-time adoption of an existing database (`contract infer` + `db sign` mechanics) → `references/quickstart.md` § *Brownfield-DB*.
+- First-time adoption of an existing database (`contract infer` + `db sign` mechanics) → `prisma-orm-core-concepts/references/quickstart.md` § *Brownfield-DB*.
 
 ## Key Concepts
 
@@ -125,7 +125,7 @@ If you skip the chaining, the next default plan resolves to greenfield: the trap
 
 ## Workflow — adopt a pre-existing database
 
-The concept: a database that predates Prisma Next enters the system by describing it, not migrating it — `contract infer` derives the contract from the live schema, and after review + `contract emit`, `db sign` records the marker. Full recipe: `references/quickstart.md` § *Brownfield-DB*.
+The concept: a database that predates Prisma Next enters the system by describing it, not migrating it — `contract infer` derives the contract from the live schema, and after review + `contract emit`, `db sign` records the marker. Full recipe: `prisma-orm-core-concepts/references/quickstart.md` § *Brownfield-DB*.
 
 ```bash
 pnpm prisma contract infer --db "$DATABASE_URL" --output src/prisma/contract.prisma
@@ -161,7 +161,7 @@ The concept: the database exists and its marker is accurate (hash **M**) — it 
 
 ## What Prisma Next doesn't do yet
 
-- **No plan-time ref advancement.** `migration plan` cannot advance a ref for you; keeping the chain current is manual (`migration ref set` after each plan, or `--from` every time). If you want a plan-time advancement flag, file a feature request via the `references/feedback.md` skill.
+- **No plan-time ref advancement.** `migration plan` cannot advance a ref for you; keeping the chain current is manual (`migration ref set` after each plan, or `--from` every time). If you want a plan-time advancement flag, file a feature request via the `prisma-orm-core-concepts/references/feedback.md` skill.
 
 ## Checklist
 

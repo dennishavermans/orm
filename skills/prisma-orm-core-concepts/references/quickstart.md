@@ -270,13 +270,13 @@ A reference table — not a script to recite at the user. Commands surface in th
 |---|---|---|
 | Apply the current contract to the DB the first time | `prisma db init` | this skill |
 | Re-emit `contract.json` + `contract.d.ts` after editing the contract source | `prisma contract emit` | `references/contract.md` |
-| Quick dev-only schema sync (no migration history kept) | `prisma db update` | `references/migrations.md` |
-| Plan a migration from a contract diff | `prisma migration plan --name <slug>` | `references/migrations.md` |
-| Apply pending migrations | `prisma db migrate` | `references/migrations.md` |
-| Inspect the live database | `prisma db schema` | `references/debug.md` |
-| Confirm the DB matches the contract (drift check) | `prisma db verify` | `references/debug.md` |
+| Quick dev-only schema sync (no migration history kept) | `prisma db update` | `prisma-orm-migrations/references/migrations.md` |
+| Plan a migration from a contract diff | `prisma migration plan --name <slug>` | `prisma-orm-migrations/references/migrations.md` |
+| Apply pending migrations | `prisma db migrate` | `prisma-orm-migrations/references/migrations.md` |
+| Inspect the live database | `prisma db schema` | `references/failure-modes.md` |
+| Confirm the DB matches the contract (drift check) | `prisma db verify` | `references/failure-modes.md` |
 | Bring an existing DB into a PN contract | `prisma contract infer --db "$DATABASE_URL"` | this skill (brownfield) |
-| Decode a structured error envelope | (read the `code` / `why` / `fix` fields) | `references/debug.md` |
+| Decode a structured error envelope | (read the `code` / `why` / `fix` fields) | `references/failure-modes.md` |
 | Report a bug or request a feature | (file via the feedback skill) | `references/feedback.md` |
 
 ## Decision — PSL vs TypeScript authoring
@@ -299,7 +299,7 @@ Switch authoring later by re-running `prisma orm init` in the same directory. Th
 ## What Prisma Next doesn't do yet
 
 - **Migration from another ORM.** Prisma Next doesn't migrate your schema *from* Drizzle / Prisma 6/7 / Sequelize / TypeORM / Kysely / Knex / a raw driver. Workaround: install the matching `@internal/migrate-from-<orm>-skill` if one exists for your source, or treat the source as a brownfield database and `contract infer` from it. If you need a guided migration flow built-in, file a feature request via the `references/feedback.md` skill.
-- **`prisma db push`-style production sync.** `db update` is the quick development path; for production, use migrations (`migration plan` + `db migrate`). PN deliberately does not offer a "push-to-prod-without-a-migration" surface — see `references/migrations.md`.
+- **`prisma db push`-style production sync.** `db update` is the quick development path; for production, use migrations (`migration plan` + `db migrate`). PN deliberately does not offer a "push-to-prod-without-a-migration" surface — see `prisma-orm-migrations/references/migrations.md`.
 - **Studio / GUI database browser.** Use `prisma db schema` for a CLI tree-style summary of the live DB. If you need an interactive UI, file a feature request via the `references/feedback.md` skill.
 
 ## Reference Files

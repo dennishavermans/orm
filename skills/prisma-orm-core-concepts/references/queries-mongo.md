@@ -220,7 +220,7 @@ Update callbacks return arrays of field operations (`.set`, `.inc`, `.push`, `.p
 
 ## Reference Files
 
-- Example queries under [`examples/mongo-demo/src/server.ts`](examples/mongo-demo/src/server.ts) — ORM reads, `.include`, `.variant`, and pipeline DSL via `db.query`.
+- Example queries under [`examples/mongo-demo/src/server.ts`](../../../examples/mongo-demo/src/server.ts) — ORM reads, `.include`, `.variant`, and pipeline DSL via `db.query`.
 - Integration tests under `examples/mongo-demo/test/` (`blog.test.ts`, `crud-lifecycle.test.ts`, `query-builder-writes.test.ts`).
 - Query builder README under `packages/2-mongo-family/5-query-builders/query-builder/README.md`.
 - ORM collection surface under `packages/2-mongo-family/5-query-builders/orm/src/collection.ts`.

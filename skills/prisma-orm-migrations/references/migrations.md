@@ -5,7 +5,7 @@
 
 The three-step user model:
 
-1. **You edit your data contract.** (`references/contract.md`)
+1. **You edit your data contract.** (`prisma-orm-core-concepts/references/contract.md`)
 2. **Prisma Next plans the migration for you.** ← this skill
 3. **If a data transform is needed, you edit `migration.ts` and self-emit.** ← this skill
 
@@ -25,8 +25,8 @@ Once the contract changes, you choose how the change reaches the database. This 
 
 - User wants to know what migrations *will run on deploy* / on merge, or to manage refs and invariants → `references/migration-review.md`.
 - User is deciding where a plan should chain from, saw `from: (baseline)` unexpectedly, is setting up migrations for a deploy-first (Composer / CD-managed) project, or is retrofitting migrations onto an existing database → `references/migration-model.md`.
-- User wants to edit the contract → `references/contract.md`.
-- User wants a deeper read of a single structured error envelope → `references/debug.md`.
+- User wants to edit the contract → `prisma-orm-core-concepts/references/contract.md`.
+- User wants a deeper read of a single structured error envelope → `prisma-orm-core-concepts/references/failure-modes.md`.
 
 ## Key Concepts
 
@@ -139,7 +139,7 @@ If the `db` ref's pointer is itself missing and the hash isn't a graph node eith
 
 `db` is a **default ref name**, not a reserved one. The framework overwrites it on the next dev cycle; you may `migration ref set db <hash>` explicitly and accept that a subsequent `db update` replaces it when run against the default URL.
 
-Canonical detail: [Migration System § Contract resolution through the snapshot store](../../docs/architecture%20docs/subsystems/7.%20Migration%20System.md#contract-resolution-through-the-snapshot-store), [§ `migration plan`](../../docs/architecture%20docs/subsystems/7.%20Migration%20System.md#migration-plan), [§ Recovery affordances](../../docs/architecture%20docs/subsystems/7.%20Migration%20System.md#recovery-affordances), [ADR 218 — Refs with paired contract snapshots and universal graph-node invariant](../../docs/architecture%20docs/adrs/ADR%20218%20-%20Refs%20with%20paired%20contract%20snapshots%20and%20universal%20graph-node%20invariant.md) (TML-2629, its paired-snapshot part superseded — see the ADR's Status note), and [ADR 240 — Contract snapshots live in a content-addressed store](../../docs/architecture%20docs/adrs/ADR%20240%20-%20Contract%20snapshots%20live%20in%20a%20content-addressed%20store.md).
+Canonical detail: [Migration System § Contract resolution through the snapshot store](../../../docs/architecture%20docs/subsystems/7.%20Migration%20System.md#contract-resolution-through-the-snapshot-store), [§ `migration plan`](../../../docs/architecture%20docs/subsystems/7.%20Migration%20System.md#migration-plan), [§ Recovery affordances](../../../docs/architecture%20docs/subsystems/7.%20Migration%20System.md#recovery-affordances), [ADR 218 — Refs with paired contract snapshots and universal graph-node invariant](../../../docs/architecture%20docs/adrs/ADR%20218%20-%20Refs%20with%20paired%20contract%20snapshots%20and%20universal%20graph-node%20invariant.md) (TML-2629, its paired-snapshot part superseded — see the ADR's Status note), and [ADR 240 — Contract snapshots live in a content-addressed store](../../../docs/architecture%20docs/adrs/ADR%20240%20-%20Contract%20snapshots%20live%20in%20a%20content-addressed%20store.md).
 
 ## Workflow — `db update` (quick path)
 
@@ -247,7 +247,7 @@ MigrationCLI.run(import.meta.url, M);
 
 Replace both `placeholder(...)` calls with query-plan closures built from `endContract`. The `check` closure must return a **rowset query whose presence of any row signals "work remains"** — conventionally `<table>.select('id').where(<violation predicate>).limit(1)`. Scalar/aggregate shapes (`count(*)`, `bool_and(...)`) silently break the contract: the runner wraps `check` twice (`EXISTS(...)` for precheck, `NOT EXISTS(...)` for postcheck), and a query that always returns one row makes `EXISTS` always true and `NOT EXISTS` always false.
 
-Build the query builder against `endContract` so the storage hashes line up — using a different contract reference raises `PN-MIG-2005`. The filled-in shape (the rendered scaffold above with `placeholder(...)` calls replaced; if you need an extra factory like `setNotNull`, add it to the *existing* `@internal/postgres/migration` import line rather than authoring a second import). See `references/queries.md` for the surrounding `db` setup:
+Build the query builder against `endContract` so the storage hashes line up — using a different contract reference raises `PN-MIG-2005`. The filled-in shape (the rendered scaffold above with `placeholder(...)` calls replaced; if you need an extra factory like `setNotNull`, add it to the *existing* `@internal/postgres/migration` import line rather than authoring a second import). See `prisma-orm-core-concepts/references/queries.md` for the surrounding `db` setup:
 
 ```typescript
 import endContract from '../../snapshots/93f07d1b…c9e1e5a2/contract.json' with { type: 'json' };
@@ -408,7 +408,7 @@ pnpm prisma db sign --db $DATABASE_URL
 The concept: drift means `db verify` reports the live DB schema doesn't match what the marker says it should be. Two valid moves, picked by which side is correct:
 
 - **The contract is right; the DB is wrong** → run a migration. Either `db update` (quick path, dev DB only) or `migration plan` + `db migrate` (everywhere else).
-- **The DB is right; the contract or marker is wrong** → edit the contract to match the DB (see `references/contract.md`), emit, then `db sign` to refresh the marker.
+- **The DB is right; the contract or marker is wrong** → edit the contract to match the DB (see `prisma-orm-core-concepts/references/contract.md`), emit, then `db sign` to refresh the marker.
 
 The diagnostic that reveals which side is right:
 
@@ -478,16 +478,16 @@ In non-interactive contexts (CI, `--no-interactive`, `--json`), the destructive-
 5. **Routine `db verify` after a successful `db update` or `db migrate`.** Redundant on the happy path — reserve `db verify` for drift diagnosis (manual edits, restore, failed `db migrate`).
 6. **Aggregate `check` closure in Postgres `this.dataTransform`.** Returning `count(*)` or `bool_and(...)` breaks the precheck/postcheck contract — both sides resolve to constants. Use a rowset shape: `select('id').where(<violation>).limit(1)`.
 7. **Two contract references in one migration.** Building a query plan against a different contract than the one passed to `this.dataTransform(endContract, ...)` raises `PN-MIG-2005`. Always import `endContract` once at module scope and use the same reference.
-8. **Renaming and expecting the planner to detect it (Postgres).** Prisma Next has no in-contract rename hint today; the planner emits a destructive drop+add. Hand-edit `migration.ts` to rewrite the destructive op as a `rawSql({ ... })` that issues `ALTER TABLE ... RENAME COLUMN ...` (or use the two-migration keep / backfill / drop pattern), then self-emit. See `references/contract.md` § *Edit a field — rename*.
+8. **Renaming and expecting the planner to detect it (Postgres).** Prisma Next has no in-contract rename hint today; the planner emits a destructive drop+add. Hand-edit `migration.ts` to rewrite the destructive op as a `rawSql({ ... })` that issues `ALTER TABLE ... RENAME COLUMN ...` (or use the two-migration keep / backfill / drop pattern), then self-emit. See `prisma-orm-core-concepts/references/contract.md` § *Edit a field — rename*.
 9. **Planning with no `db` ref and no `--from` in a project that already has migrations.** The origin falls through to the empty database, which would make the plan a full-create migration; `migration plan` refuses with `MIGRATION.PLAN_ORIGIN_UNKNOWN` rather than writing it. Pick the exit that matches your intent — the error lists them, and `references/migration-model.md` § *The trap* explains which to choose.
 10. **Hand-authoring `migration.ts` from a blank file, or rewriting the rendered import line.** Migration files are framework-rendered — let `prisma migration plan` (or `migration new`) render the package, then edit only the holes the framework leaves for you. On Postgres leave the rendered `@internal/postgres/migration` (or `@internal/sqlite/migration`) import path alone; on Mongo use `@internal/family-mongo/migration` + `@internal/target-mongo/migration` as rendered. Add symbols to the existing factory import line rather than introducing new import paths.
 
 ## What Prisma Next doesn't do yet
 
-- **Runtime-apply migrations.** Prisma Next doesn't apply pending migrations from your app's startup code (the "Drizzle pattern" for serverless / edge). Workaround: run `prisma db migrate` from your deploy pipeline before the app starts. If you need runtime-apply built-in, file a feature request via the `references/feedback.md` skill.
-- **Seeds-as-first-class.** Prisma Next doesn't ship a `prisma db seed` equivalent. Workaround: write a TypeScript script that imports your `db` instance and runs your setup queries; invoke it from `package.json`'s scripts. If you need first-class seeding, file a feature request via the `references/feedback.md` skill.
-- **Migration squashing.** Prisma Next doesn't squash older migrations into a baseline. They accumulate; for very large histories, manual baseline-and-truncate is the path. If you need built-in squashing, file a feature request via the `references/feedback.md` skill.
-- **In-contract rename hints.** The planner cannot detect that a field rename is a rename rather than a drop+add. Workaround: hand-edit `migration.ts` to issue a `RENAME COLUMN` via `rawSql(...)`, or use a keep / backfill / drop pattern across two migrations. If you need a contract-level rename hint, file a feature request via the `references/feedback.md` skill.
+- **Runtime-apply migrations.** Prisma Next doesn't apply pending migrations from your app's startup code (the "Drizzle pattern" for serverless / edge). Workaround: run `prisma db migrate` from your deploy pipeline before the app starts. If you need runtime-apply built-in, file a feature request via the `prisma-orm-core-concepts/references/feedback.md` skill.
+- **Seeds-as-first-class.** Prisma Next doesn't ship a `prisma db seed` equivalent. Workaround: write a TypeScript script that imports your `db` instance and runs your setup queries; invoke it from `package.json`'s scripts. If you need first-class seeding, file a feature request via the `prisma-orm-core-concepts/references/feedback.md` skill.
+- **Migration squashing.** Prisma Next doesn't squash older migrations into a baseline. They accumulate; for very large histories, manual baseline-and-truncate is the path. If you need built-in squashing, file a feature request via the `prisma-orm-core-concepts/references/feedback.md` skill.
+- **In-contract rename hints.** The planner cannot detect that a field rename is a rename rather than a drop+add. Workaround: hand-edit `migration.ts` to issue a `RENAME COLUMN` via `rawSql(...)`, or use a keep / backfill / drop pattern across two migrations. If you need a contract-level rename hint, file a feature request via the `prisma-orm-core-concepts/references/feedback.md` skill.
 
 ## Graph and history commands
 
@@ -500,11 +500,11 @@ For the full graph topology: `pnpm prisma migration graph` (also supports `--leg
 
 ## `@@control` and DDL scope
 
-Objects whose `@@control` policy excludes them from Prisma Next's managed surface are omitted from planned DDL. The four policies are: `managed` (Prisma plans and applies DDL), `tolerated` (object may exist, no DDL emitted), `external` (object is expected to exist, no DDL), `observed` (Prisma reads but never writes). Declare `@@control(managed|tolerated|external|observed)` in your schema; see `references/contract.md` and [`packages/2-sql/2-authoring/contract-psl/README.md`](../../packages/2-sql/2-authoring/contract-psl/README.md) for authoring syntax.
+Objects whose `@@control` policy excludes them from Prisma Next's managed surface are omitted from planned DDL. The four policies are: `managed` (Prisma plans and applies DDL), `tolerated` (object may exist, no DDL emitted), `external` (object is expected to exist, no DDL), `observed` (Prisma reads but never writes). Declare `@@control(managed|tolerated|external|observed)` in your schema; see `prisma-orm-core-concepts/references/contract.md` and [`packages/2-sql/2-authoring/contract-psl/README.md`](../../../packages/2-sql/2-authoring/contract-psl/README.md) for authoring syntax.
 
 ## Telemetry
 
-The CLI collects anonymous usage data by default. To opt out, set `PRISMA_NEXT_DISABLE_TELEMETRY=1` or `DO_NOT_TRACK=1` in your environment. See [`docs/Telemetry.md`](../../docs/Telemetry.md) for the full opt-out reference.
+The CLI collects anonymous usage data by default. To opt out, set `PRISMA_NEXT_DISABLE_TELEMETRY=1` or `DO_NOT_TRACK=1` in your environment. See [`docs/Telemetry.md`](../../../docs/Telemetry.md) for the full opt-out reference.
 
 ## Checklist
 

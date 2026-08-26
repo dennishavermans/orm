@@ -18,8 +18,8 @@ The skill teaches *the system's mental model* — what a ref is, what a marker i
 ## When Not to Use
 
 - User wants to *author* a migration → `references/migrations.md`.
-- User wants to fix a hash-mismatch / drift in a single env → `references/migrations.md` (re-plan path) or `references/debug.md` (envelope-driven).
-- User wants to edit the contract → `references/contract.md`.
+- User wants to fix a hash-mismatch / drift in a single env → `references/migrations.md` (re-plan path) or `prisma-orm-core-concepts/references/failure-modes.md` (envelope-driven).
+- User wants to edit the contract → `prisma-orm-core-concepts/references/contract.md`.
 
 ## Key Concepts — the navigation model
 
@@ -78,7 +78,7 @@ Both flags are also available on `migration list` and `migration graph`. `migrat
 
 ### Plan- and apply-time diagnostics
 
-These codes surface on `migration plan`, `migration ref set`, and `db migrate` — not on `migration status`. See [Migration System § Recovery affordances](../../docs/architecture%20docs/subsystems/7.%20Migration%20System.md#recovery-affordances) and [ADR 218](../../docs/architecture%20docs/adrs/ADR%20218%20-%20Refs%20with%20paired%20contract%20snapshots%20and%20universal%20graph-node%20invariant.md).
+These codes surface on `migration plan`, `migration ref set`, and `db migrate` — not on `migration status`. See [Migration System § Recovery affordances](../../../docs/architecture%20docs/subsystems/7.%20Migration%20System.md#recovery-affordances) and [ADR 218](../../../docs/architecture%20docs/adrs/ADR%20218%20-%20Refs%20with%20paired%20contract%20snapshots%20and%20universal%20graph-node%20invariant.md).
 
 | Code | When | Meaning | Next move |
 |---|---|---|---|
@@ -206,8 +206,8 @@ For a human-readable ordered preview of the migration path before applying, use 
 
 ## What Prisma Next doesn't do yet
 
-- **Per-environment migration ordering beyond the default chain.** If you need staging to skip a migration that production requires (or vice versa), the supported path is to author the per-env divergence as separate migrations and gate them in your deploy script. If you want first-class per-env routing, file a feature request via the `references/feedback.md` skill.
-- **A built-in side-by-side "branch diff" view.** There is a full-graph render (`migration graph`) that shows branches, but no `git diff`-style comparison between two branches' migration sets. Workaround: run `migration status` on each branch and `diff` the output. If you want a built-in branch-comparison view, file a feature request via the `references/feedback.md` skill.
+- **Per-environment migration ordering beyond the default chain.** If you need staging to skip a migration that production requires (or vice versa), the supported path is to author the per-env divergence as separate migrations and gate them in your deploy script. If you want first-class per-env routing, file a feature request via the `prisma-orm-core-concepts/references/feedback.md` skill.
+- **A built-in side-by-side "branch diff" view.** There is a full-graph render (`migration graph`) that shows branches, but no `git diff`-style comparison between two branches' migration sets. Workaround: run `migration status` on each branch and `diff` the output. If you want a built-in branch-comparison view, file a feature request via the `prisma-orm-core-concepts/references/feedback.md` skill.
 
 ## Reference Files
 

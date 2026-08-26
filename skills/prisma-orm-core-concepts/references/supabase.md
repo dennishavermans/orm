@@ -19,7 +19,7 @@ This skill covers using Prisma Next against a **Supabase** project end-to-end: c
 - General contract editing (models, fields, relations) → `references/contract.md`.
 - Non-Supabase `db.ts` wiring, middleware, teardown → `references/runtime.md`.
 - General query shapes (filtering, includes, aggregates) → `references/queries.md` — everything there applies to a role-bound `db` too.
-- Migration planning / applying → `references/migrations.md`.
+- Migration planning / applying → `prisma-orm-migrations/references/migrations.md`.
 
 ## Key Concepts
 
@@ -111,7 +111,7 @@ The pieces:
 - **Predicates are verbatim SQL strings.** Quote camelCase column names inside them (`\"userId\"`), and cast where needed — `auth.uid()` returns `uuid`. Renames in your contract do not rewrite predicate bodies.
 - **TS-builder parity exists.** `@internal/postgres/contract-builder` exports `policySelect` / `policyInsert` / `policyUpdate` / `policyDelete` / `policyAll`, `rlsEnabled(Model)`, and `role('anon')` — mirroring the PSL lowering key-for-key (identical emitted wire names). PSL is the canonical path shown here.
 
-Emit + migrate as usual (`prisma contract emit`, then `references/migrations.md`). The plan creates your table, its FK, `ENABLE ROW LEVEL SECURITY`, and the `CREATE POLICY` statements — and **no DDL for `auth.*`**.
+Emit + migrate as usual (`prisma contract emit`, then `prisma-orm-migrations/references/migrations.md`). The plan creates your table, its FK, `ENABLE ROW LEVEL SECURITY`, and the `CREATE POLICY` statements — and **no DDL for `auth.*`**.
 
 ## Workflow — `db.ts` with the `supabase()` factory
 

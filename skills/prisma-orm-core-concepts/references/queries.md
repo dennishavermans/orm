@@ -20,7 +20,7 @@ Once the contract is emitted and the DB is up to date, this skill covers everyth
 - User wants to add / change a model → `references/contract.md`.
 - User wants to wire `db.ts` or add middleware → `references/runtime.md`.
 - User is querying through a Supabase role-bound db (`asUser` / `asAnon` / `asServiceRole`, RLS, `auth.*` admin reads) → `references/supabase.md` for the role-binding surface; everything in this skill then applies to the returned `RoleBoundDb`.
-- User wants to debug a query failure (structured error envelope) → `references/debug.md`.
+- User wants to debug a query failure (structured error envelope) → `references/failure-modes.md`.
 
 ## Pick your target
 

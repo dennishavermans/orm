@@ -114,7 +114,7 @@ See [`examples/react-router-demo`](https://github.com/prisma/prisma/tree/main/ex
 2. **Vite 6 or earlier.** Not supported. Upgrade Vite to 7 or 8.
 3. **The plugin warns: *"watching only the config; loader resolved inputs unavailable."*** The plugin couldn't resolve `contract.source.inputs` from the loader. The fallback watches only `prisma.config.ts` itself, so contract edits won't re-emit. Causes: the config file throws during loading; the contract source path resolves outside the Vite root. Fix the config error first, then check that the contract source path in the config is relative to (or inside) the Vite root.
 4. **Expecting `vite build` to re-emit.** It doesn't. Add a `prebuild` script.
-5. **Emit errors during dev**: the plugin surfaces them via Vite's error overlay. Read the overlay; the underlying cause is a contract authoring problem — chain to `references/debug.md` for resolution (PSL syntax, missing namespace, conflicting extensions).
+5. **Emit errors during dev**: the plugin surfaces them via Vite's error overlay. Read the overlay; the underlying cause is a contract authoring problem — chain to `references/failure-modes.md` for resolution (PSL syntax, missing namespace, conflicting extensions).
 6. **Re-installing dependencies without the plugin's peer-range move.** When PN bumps the plugin's peer range, you must re-run `pnpm install` so the lockfile picks up the new range. A stale lockfile keeps the old plugin and produces confusing version mismatch warnings.
 
 ## What Prisma Next doesn't do yet
