@@ -551,7 +551,7 @@ Starting at the 0.12 release, the migration manifest schema is closed (`'+': 're
 Run the colocated codemod from your extension's package root:
 
 ```bash
-pnpm exec tsx ./strip-migration-labels-hints.ts
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/extension/upgrades/0.11-to-0.12/strip-migration-labels-hints.ts
 ```
 
 It walks every `migration.json` that has a sibling `ops.json` (a complete on-disk migration package), removes the `labels` and `hints` keys, and recomputes `migrationHash` over the slimmed metadata plus the operations. The edit is format-preserving — only the two key lines are removed and the hash value is swapped in place, so the rest of each manifest (key order, indentation, inline-vs-expanded arrays) is left untouched and the diff stays minimal. The codemod is idempotent: re-running it over already-migrated manifests makes no further changes.
@@ -561,7 +561,7 @@ It walks every `migration.json` that has a sibling `ops.json` (a complete on-dis
 Run the codemod in dry-run mode to confirm no committed manifest still carries the removed keys or a stale hash:
 
 ```bash
-pnpm exec tsx ./strip-migration-labels-hints.ts --check
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/extension/upgrades/0.11-to-0.12/strip-migration-labels-hints.ts --check
 ```
 
 `--check` lists every manifest that still needs fixing and exits non-zero if any remain, so wire it into your extension's CI alongside `prisma-8-check-pins`. A fully migrated tree reports `0 needing fix` and exits `0`.
@@ -585,7 +585,7 @@ Starting at the 0.12 release, Postgres extension packs whose contract-space decl
 Run the colocated script from your extension package root (or monorepo root if it hosts multiple extension packs):
 
 ```bash
-pnpm exec tsx ./regenerate-extension-public-baseline.ts
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/extension/upgrades/0.11-to-0.12/regenerate-extension-public-baseline.ts
 ```
 
 For each extension root whose `src/contract.json` still carries `"kind": "postgres-unbound-schema"`, the script runs `pnpm build:contract-space`, copies `src/contract.{json,d.ts}` into each baseline migration directory as `end-contract.{json,d.ts}`, patches the baseline `migration.ts` `to` hash, self-emits the migration (`pnpm exec tsx migrations/.../migration.ts`), and updates `migrations/refs/head.json`.
@@ -593,7 +593,7 @@ For each extension root whose `src/contract.json` still carries `"kind": "postgr
 Use `--check` to list packs that still need regeneration:
 
 ```bash
-pnpm exec tsx ./regenerate-extension-public-baseline.ts --check
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/extension/upgrades/0.11-to-0.12/regenerate-extension-public-baseline.ts --check
 ```
 
 Path B baselines (hand-authored install migrations with no planner scaffold) follow the same loop documented in your extension README: edit `describe().to`, then self-emit.
@@ -615,13 +615,13 @@ Starting at the 0.12 release, two SPI changes affect extension authors:
 Run the colocated codemod from your extension root:
 
 ```bash
-pnpm exec tsx ./migrate-contract-testing-imports.ts
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/extension/upgrades/0.11-to-0.12/migrate-contract-testing-imports.ts
 ```
 
 It rewrites every `@internal/contract/testing` import to `@repo/test-utils`. Use `--check` for a dry-run:
 
 ```bash
-pnpm exec tsx ./migrate-contract-testing-imports.ts --check
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/extension/upgrades/0.11-to-0.12/migrate-contract-testing-imports.ts --check
 ```
 
 Exports are unchanged — only the package path moves:

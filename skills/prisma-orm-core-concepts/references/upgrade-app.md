@@ -4,15 +4,9 @@ This reference upgrades a project that **consumes** Prisma 8 via the public pack
 
 The per-transition instructions this reference reads live under [`../upgrading/app/upgrades/`](../upgrading/app/upgrades/).
 
-## Step 0 — Upgrade to the newest instructions, then re-read
-
-The upgrade instructions ship inside the installed Prisma packages, so the copy on disk describes the version currently installed — not the version being upgraded *to*. Bug fixes to *old* per-transition instructions ship with each release as part of the cumulative set, so the newest copy is the one to run.
-
-Do the version bump first (step 1 of the per-step flow below), re-sync the skills from the newly installed packages (`prisma skills sync`), and re-read this reference and the per-transition instructions before applying any code translation. If the agent runtime supports an in-session refresh, perform it after the sync; otherwise finish the session's reasoning against the re-read files.
-
 ## Pre-flight — extension compatibility
 
-Before changing any code, refuse to upgrade past any installed extension's pinned Prisma Next version. Extensions in Prisma Next pin every `@internal/*` dependency to a single exact version (no carets, no ranges); that pin is the highest version the extension has been validated against. Upgrading the user app past that pin would silently desynchronise the extension's type identity from the app's.
+This runs before anything else, including the Step 0 version bump below: it only reads `prisma.config.ts` and installed `package.json` files, so it needs no bump. Refuse to upgrade past any installed extension's pinned Prisma Next version. Extensions in Prisma Next pin every `@internal/*` dependency to a single exact version (no carets, no ranges); that pin is the highest version the extension has been validated against. Upgrading the user app past that pin would silently desynchronise the extension's type identity from the app's.
 
 Steps:
 
@@ -26,6 +20,12 @@ Steps:
 Do not auto-downgrade the target; do not skip the lagging extension; do not bump past it. If the user explicitly overrides the halt, surface the risk clearly first.
 
 If `prisma.config.ts` is absent or names no extensions, skip the pre-flight.
+
+## Step 0 — Upgrade to the newest instructions, then re-read
+
+The upgrade instructions ship inside the installed Prisma packages, so the copy on disk describes the version currently installed — not the version being upgraded *to*. Bug fixes to *old* per-transition instructions ship with each release as part of the cumulative set, so the newest copy is the one to run.
+
+Once the pre-flight has established the target is reachable, do the version bump (step 1 of the per-step flow below), re-sync the skills from the newly installed packages (`prisma skills sync`), and re-read this reference and the per-transition instructions before applying any code translation. If the agent runtime supports an in-session refresh, perform it after the sync; otherwise finish the session's reasoning against the re-read files.
 
 ## Role detection
 

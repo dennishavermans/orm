@@ -173,7 +173,7 @@ export interface SqlQueryable {
   query<Row>(sql: string, params?: readonly unknown[]): Promise<SqlQueryResult<Row>>;
 }
 
-// After (0.18)
+// After (8.0.0-rc.1)
 export interface SqlQueryable {
   query<Row>(request: SqlExecuteRequest): AsyncIterable<Row>;
   execute(request: SqlExecuteRequest): Promise<SqlStatementStats>; // { affectedRows }

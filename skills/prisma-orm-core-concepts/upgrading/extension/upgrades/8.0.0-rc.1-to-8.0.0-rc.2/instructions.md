@@ -443,7 +443,7 @@ await readings.select('id').include('samples', (samples) => reduceToTotal(sample
 
 Where an argument was previously widened past the types — `aggregate.sum('counter' as never)` compiled because `AggregateFieldNames` was already `never` for such a contract — the cast moves from the argument to the builder, and the field name goes back to being a plain string.
 
-The better fix, wherever the pack can emit, is to emit: run `prisma-next contract emit` and type the client from the emitted `Contract`. That restores full typing — arities, admitted field names, and per-codec result types — instead of erasing it.
+The better fix, wherever the pack can emit, is to emit: run `prisma contract emit` and type the client from the emitted `Contract`. That restores full typing — arities, admitted field names, and per-codec result types — instead of erasing it.
 
 ## `count-over-a-field-counts-that-field`
 

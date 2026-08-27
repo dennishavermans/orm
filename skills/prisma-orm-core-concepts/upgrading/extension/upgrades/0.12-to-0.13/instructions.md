@@ -171,7 +171,7 @@ Because the `storageHash` changes, re-generate the migration baselines so
 
 ### Validation
 
-After re-emitting and re-pinning, run `pnpm typecheck && pnpm test --filter <your-extension-package>`,
+After re-emitting and re-pinning, run `pnpm --filter <your-extension-package> typecheck && pnpm --filter <your-extension-package> test`,
 then confirm `prisma-next migration check` passes. The `contract.json` diff should show
 `"typeParams": {}` removed from every `storage.types` entry.
 
@@ -242,8 +242,8 @@ re-emit `ops.json` + `migration.json`, then update `migrations/refs/head.json`.
 
 ### Validation
 
-After re-emitting and re-pinning, run `pnpm typecheck && pnpm test --filter
-<your-extension-package>`, then confirm `prisma-next migration check` passes.
+After re-emitting and re-pinning, run `pnpm --filter <your-extension-package> typecheck &&
+pnpm --filter <your-extension-package> test`, then confirm `prisma-next migration check` passes.
 
 ## Declarative PSL-block SPI (additive)
 

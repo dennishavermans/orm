@@ -390,6 +390,8 @@ SQLite states the same policy in its own terms — `count`, integer `sum`, and `
    //                        ↑ the replacer can go
    ```
 
+   The replacer can only go when nothing in the serialized result is a `bigint`. A result that includes `countBigInt()` or `sumBigInt()` values (item 3 below) still needs it.
+
 3. **Change the method, not the value, where you need exactness.** A decimal-string average was doing real work in a money or reporting path; `avgDecimal(field)` returns exactly what `avg(field)` used to, and `countBigInt()` exactly what `count()` used to.
 
    `sumBigInt(field)` matches the old `sum(field)` everywhere but one column class. On PostgreSQL, a `BigInt` or `BigIntNumber` column's `sum` used to be a decimal `string`, because the database totals a 64-bit column as `numeric`; `sumBigInt` reads that same total as a `bigint`. So a money path summing a `BigInt` column gets a `bigint` where it had a string — exact either way, but a different type. Convert at the consumption site (`String(total)`) if a decimal library or a string comparison is downstream. Over every other integer column, and on SQLite, `sumBigInt` is the old `sum` unchanged.

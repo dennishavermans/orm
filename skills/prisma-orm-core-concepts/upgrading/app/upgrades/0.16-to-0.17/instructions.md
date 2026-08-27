@@ -600,7 +600,7 @@ Two distinct effects on your checked-in artefacts:
 Run the colocated codemod from your project root, **before** `scripts/migrate-migrations-layout.mjs` (the snapshot-layout entries below) — the 0.17 layout migrator accepts only bare-hex trees:
 
 ```bash
-pnpm exec tsx ./strip-sha256-hash-prefixes.ts
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.16-to-0.17/strip-sha256-hash-prefixes.ts
 ```
 
 For every on-disk migration package (a `migration.json` with a sibling `ops.json`) it strips the prefix from the manifest's `from` / `to`, from hash literals inside `ops.json`, in pre-store sibling contract snapshots (`*-contract.json`, `*.d.ts`, `migration.ts`), and in content-addressed store entries (`migrations/snapshots/<hex>/contract.json` + `contract.d.ts` — the directory name is the hash's hex and does not change), recomputes `migrationHash` over the bare-hex content, and rewrites `refs/*.json` — repointing refs that held old migration hashes at the recomputed ones, and mapping the empty-tree sentinel `sha256:empty` to `empty`. The edit is format-preserving (only hash literals and the recomputed hash value change) and idempotent: re-running over an already-bare tree makes no further changes.
@@ -608,7 +608,7 @@ For every on-disk migration package (a `migration.json` with a sibling `ops.json
 Use `--check` for a dry run that lists files still needing the fix and exits non-zero if any remain:
 
 ```bash
-pnpm exec tsx ./strip-sha256-hash-prefixes.ts --check
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.16-to-0.17/strip-sha256-hash-prefixes.ts --check
 ```
 
 ### Re-emit live contract artefacts

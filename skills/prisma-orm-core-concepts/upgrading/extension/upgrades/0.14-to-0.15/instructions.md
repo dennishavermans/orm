@@ -60,7 +60,7 @@ changes:
       database inside JSON values. SQL include decoding calls `decodeJson`; ordinary column decoding
       continues to call `decode`. Update custom SQL codecs whose database JSON representation differs
       from their normal driver wire representation, then re-emit committed contracts and defaults.
-      Built-in representation changes are: `pg/bytea@1` base64 -> `\\x`-prefixed hex,
+      Built-in representation changes are: `pg/bytea@1` base64 -> `\x`-prefixed hex,
       `pg/numeric@1` string -> JSON number, `pg/timestamp@1` UTC `Z` suffix -> no timezone suffix,
       `pg/timestamptz@1` UTC `Z` suffix -> `+00:00`, `sqlite/bigint@1` string -> JSON number,
       `pg/vector@1` JSON array -> Postgres vector text, and `pg/geometry@1` GeoJSON object -> HEXEWKB

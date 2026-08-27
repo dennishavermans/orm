@@ -83,7 +83,8 @@ changes:
     summary: |
       A literal `@default(...)` on a Temporal-backed temporal column cannot be emitted today.
       The default value is encoded through the column's codec while the contract is being
-      emitted, inside the CLI's own process, and stock Node ships no `Temporal`. So
+      emitted, inside the CLI's own process, and on a runtime without a global `Temporal`
+      implementation the encoding fails. So
 
       ```prisma
       occurredAt Timestamptz @default("2024-01-01T00:00:00Z")

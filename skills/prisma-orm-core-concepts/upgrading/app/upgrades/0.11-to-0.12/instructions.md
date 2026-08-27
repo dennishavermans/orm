@@ -227,7 +227,7 @@ Starting at the 0.12 release, the migration manifest schema is closed (`'+': 're
 Run the colocated codemod from your project root:
 
 ```bash
-pnpm exec tsx ./strip-migration-labels-hints.ts
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.11-to-0.12/strip-migration-labels-hints.ts
 ```
 
 It walks every `migration.json` that has a sibling `ops.json` (a complete on-disk migration package), removes the `labels` and `hints` keys, and recomputes `migrationHash` over the slimmed metadata plus the operations. The edit is format-preserving — only the two key lines are removed and the hash value is swapped in place, so the rest of each manifest (key order, indentation, inline-vs-expanded arrays) is left untouched and the diff stays minimal. The codemod is idempotent: re-running it over already-migrated manifests makes no further changes.
@@ -237,7 +237,7 @@ It walks every `migration.json` that has a sibling `ops.json` (a complete on-dis
 Run the codemod in dry-run mode to confirm no manifest still carries the removed keys or a stale hash:
 
 ```bash
-pnpm exec tsx ./strip-migration-labels-hints.ts --check
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.11-to-0.12/strip-migration-labels-hints.ts --check
 ```
 
 `--check` lists every manifest that still needs fixing and exits non-zero if any remain, so wire it into a pre-commit hook or CI step to keep stale manifests out of the tree. A fully migrated tree reports `0 needing fix` and exits `0`.
@@ -260,7 +260,7 @@ Two authoring constraints apply before emit succeeds:
 Run the colocated script from your project root:
 
 ```bash
-pnpm exec tsx ./re-emit-closed-mongo-contracts.ts
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.11-to-0.12/re-emit-closed-mongo-contracts.ts
 ```
 
 It finds every directory with a `prisma.config.ts` and a committed Mongo `contract.json`, then runs `pnpm emit` (or `prisma-next contract emit` when no emit script exists) in each. The regenerated `contract.json` / `contract.d.ts` pick up closed validators and an updated `storageHash`.
@@ -268,7 +268,7 @@ It finds every directory with a `prisma.config.ts` and a committed Mongo `contra
 Use `--check` to list contracts that still need re-emitting without writing files:
 
 ```bash
-pnpm exec tsx ./re-emit-closed-mongo-contracts.ts --check
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.11-to-0.12/re-emit-closed-mongo-contracts.ts --check
 ```
 
 ### Apply the validator migration
@@ -305,13 +305,13 @@ Explicit opt-in to the sentinel remains available: `namespace unbound { … }` i
 Run the colocated script from your project root:
 
 ```bash
-pnpm exec tsx ./re-emit-postgres-public-default.ts
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.11-to-0.12/re-emit-postgres-public-default.ts
 ```
 
 It finds every committed `contract.json` whose storage tree still carries `"kind": "postgres-unbound-schema"`, then runs `pnpm emit` (or `prisma-next contract emit`) in the matching contract space. Use `--check` to list spaces that still need re-emitting without writing files:
 
 ```bash
-pnpm exec tsx ./re-emit-postgres-public-default.ts --check
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.11-to-0.12/re-emit-postgres-public-default.ts --check
 ```
 
 ### After re-emit
@@ -331,13 +331,13 @@ Starting at the 0.12 release, the application plane is symmetric with storage: m
 Run the colocated script from your project root:
 
 ```bash
-pnpm exec tsx ./re-emit-domain-namespaced-contracts.ts
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.11-to-0.12/re-emit-domain-namespaced-contracts.ts
 ```
 
 It finds contract spaces whose on-disk artefacts still use the flat domain shape (JSON missing `domain.namespaces`, or `contract.d.ts` still referencing `Contract['models']`), then re-emits each space. Use `--check` for a dry-run:
 
 ```bash
-pnpm exec tsx ./re-emit-domain-namespaced-contracts.ts --check
+pnpm exec tsx .claude/skills/prisma-orm-core-concepts/upgrading/app/upgrades/0.11-to-0.12/re-emit-domain-namespaced-contracts.ts --check
 ```
 
 If you already re-emitted for `public-default-namespace` on 0.12, a single emit pass covers both transitions — run whichever entry's detection matches your tree.
