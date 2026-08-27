@@ -51,4 +51,4 @@ The *Skill (references) under test* column names the installed skill and, in par
 | [`05b-build-nextjs-gap.md`](05b-build-nextjs-gap.md) | prisma-orm-core-concepts (build, feedback) | AC8b (Next.js path) |
 | [`06-feedback-bug.md`](06-feedback-bug.md) | prisma-orm-core-concepts (feedback) | AC8c (bug path) |
 | [`06b-feedback-feature.md`](06b-feedback-feature.md) | prisma-orm-core-concepts (contract, feedback) | AC8c (feature path) |
-| [`07-first-touch-orientation.md`](07-first-touch-orientation.md) | prisma-orm-core-concepts (quickstart first-touch path, queries, contract) | AC4 (orientation entry point) |
+| [`07-first-touch-orientation.md`](07-first-touch-orientation.md) | prisma-orm-core-concepts (quickstart first-touch path, queries, contract, runtime, build) | AC4 (orientation entry point) |

@@ -1,6 +1,6 @@
 # Journey 07 — First-touch orientation
 
-**Skills under test:** `prisma-orm-core-concepts` (quickstart) (First-touch orientation path), with hand-offs to `prisma-orm-core-concepts` (queries) and optionally `prisma-orm-core-concepts` (contract).
+**Skills under test:** `prisma-orm-core-concepts` (quickstart) (First-touch orientation path), with hand-offs to `prisma-orm-core-concepts` (queries) and optionally `prisma-orm-core-concepts` (contract, runtime, build).
 
 **Example app:** A Prisma Next project the user is encountering for the first time. Three flavours of this initial state should all pass:
 
