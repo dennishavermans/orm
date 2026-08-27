@@ -47,7 +47,14 @@ async function findManifests(root: string): Promise<string[]> {
   const out: string[] = [];
 
   async function walk(dir: string): Promise<void> {
-    const entries = await readdir(dir, { withFileTypes: true });
+    let entries: Awaited<ReturnType<typeof readdir>>;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      // Unreadable directory — skip silently. The consumer's project root may
+      // legitimately contain restricted directories.
+      return;
+    }
     for (const entry of entries) {
       if (entry.isDirectory()) {
         if (SKIP_DIRS.has(entry.name)) continue;
@@ -70,8 +77,7 @@ async function findManifests(root: string): Promise<string[]> {
 
 function looksLikeMigrationManifest(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null) return false;
-  const obj = value as Record<string, unknown>;
-  return 'from' in obj && 'to' in obj && 'migrationHash' in obj;
+  return 'from' in value && 'to' in value && 'migrationHash' in value;
 }
 
 /**
@@ -155,6 +161,7 @@ function removeTopLevelKey(text: string, key: string): string {
 
   if (text[removeEnd] === ',') {
     removeEnd += 1;
+    if (text[removeEnd] === '\r') removeEnd += 1;
     if (text[removeEnd] === '\n') removeEnd += 1;
     let lineStart = removeStart;
     while (lineStart > 0 && text[lineStart - 1] !== '\n') lineStart -= 1;
@@ -164,9 +171,11 @@ function removeTopLevelKey(text: string, key: string): string {
     while (back > 0 && /[ \t]/.test(text[back] ?? '')) back -= 1;
     if (text[back] === '\n') {
       let prev = back - 1;
+      if (text[prev] === '\r') prev -= 1; // CRLF: the comma sits before \r\n
       while (prev > 0 && /[ \t]/.test(text[prev] ?? '')) prev -= 1;
       if (text[prev] === ',') {
         removeStart = prev;
+        if (text[removeEnd] === '\r') removeEnd += 1;
         if (text[removeEnd] === '\n') removeEnd += 1;
       }
     }

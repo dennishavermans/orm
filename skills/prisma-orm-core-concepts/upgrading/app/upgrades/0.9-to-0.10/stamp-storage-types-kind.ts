@@ -61,13 +61,14 @@
  *   This is the safe default for unknown codec IDs (including any
  *   future extension-contributed codecs).
  *
- * The transformation re-serialises each affected file via
- * `JSON.stringify(value, null, 2) + '\n'` — the same formatting the
- * CLI uses when authoring snapshots originally, so the diff outside
- * `storage.types` is zero on files the CLI generated. Hand-edited
- * contract snapshots may experience cosmetic whitespace shifts; this
- * is acceptable because on-disk contract snapshots are CLI-authored
- * artefacts, not user-edited source.
+ * The transformation re-serialises each affected file via the local
+ * `formatJson` helper — 2-space-indented JSON that additionally keeps
+ * short arrays of primitives inline (see the `formatJson` doc block),
+ * matching the formatting the CLI uses when authoring snapshots
+ * originally, so the diff outside `storage.types` is zero on files the
+ * CLI generated. Hand-edited contract snapshots may experience cosmetic
+ * whitespace shifts; this is acceptable because on-disk contract
+ * snapshots are CLI-authored artefacts, not user-edited source.
  *
  * The codemod is idempotent: running it on already-stamped snapshots
  * is a no-op (every entry passes the `kind`-already-present check).

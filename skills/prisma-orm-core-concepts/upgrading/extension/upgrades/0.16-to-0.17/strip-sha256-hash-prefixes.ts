@@ -271,12 +271,15 @@ async function processPackage(manifestPath: string): Promise<Result[]> {
 
   const out: Result[] = [];
 
+  // Stage both transformed files and run every validation before writing
+  // either, so a manifest failure cannot leave ops.json updated while
+  // migration.json stays stale.
+
   // Ops: strip prefixes (e.g. `meta.storageHash` stamps inside operation
   // payloads), then parse the stripped text — the recomputed hash covers the
   // bare-hex operations exactly as they will sit on disk.
   const strippedOpsRaw = stripHashPrefixes(opsRaw);
   const ops: unknown = JSON.parse(strippedOpsRaw);
-  out.push(await emit(opsPath, opsRaw, strippedOpsRaw));
 
   // Manifest: strip prefixes from `from` / `to` (and the sentinel), then
   // recompute `migrationHash` over the bare-hex envelope + bare-hex ops.
@@ -297,13 +300,10 @@ async function processPackage(manifestPath: string): Promise<Result[]> {
   migrationHashMap.set(oldStoredHash, newHash);
   migrationHashMap.set(strippedOldHash, newHash);
 
-  out.push(
-    await emit(
-      manifestPath,
-      raw,
-      replaceMigrationHash(strippedManifestRaw, strippedOldHash, newHash),
-    ),
-  );
+  const finalManifestRaw = replaceMigrationHash(strippedManifestRaw, strippedOldHash, newHash);
+
+  out.push(await emit(opsPath, opsRaw, strippedOpsRaw));
+  out.push(await emit(manifestPath, raw, finalManifestRaw));
 
   // Siblings: contract snapshots (`*-contract.json`), branded-literal type
   // files (`*.d.ts`), and the executable `migration.ts` all carry contract

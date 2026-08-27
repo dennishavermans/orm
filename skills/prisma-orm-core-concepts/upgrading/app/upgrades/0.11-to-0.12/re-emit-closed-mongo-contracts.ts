@@ -171,7 +171,7 @@ for (const dir of configDirs) {
 
 if (mongoDirs.length === 0) {
   console.error(`No Mongo contract directories found under ${projectRoot}.`);
-  process.exit(1);
+  process.exit(dryRun ? 0 : 1);
 }
 
 let needsFix = 0;

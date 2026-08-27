@@ -302,6 +302,26 @@ async function processFile(path: string): Promise<Result> {
   if (out === raw) {
     return { path, status: 'already-clean' };
   }
+
+  // Fail closed before writing: the text surgery assumes one-key-per-line
+  // formatting, so reparse the stripped text and refuse to write if it is no
+  // longer valid JSON (e.g. a stranded trailing comma) or if either obsolete
+  // key survived the strip (e.g. a minified manifest defeats the
+  // newline-anchored key removal).
+  let reparsed: unknown;
+  try {
+    reparsed = JSON.parse(out);
+  } catch (error) {
+    throw new Error(
+      `${path}: stripped manifest is no longer valid JSON — refusing to write (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+  if (isJsonObject(reparsed) && ('labels' in reparsed || 'hints' in reparsed)) {
+    throw new Error(
+      `${path}: \`labels\`/\`hints\` survived the strip (minified manifest?) — refusing to write; slim this manifest by hand and re-run`,
+    );
+  }
+
   if (!dryRun) await writeFile(path, out, 'utf-8');
   return { path, status: dryRun ? 'needs-fix' : 'fixed' };
 }

@@ -69,7 +69,10 @@ function readToken(src: string, offset: number): { value: string; end: number } 
   if (src[i] === "'" || src[i] === '"' || src[i] === '`') {
     const q = src[i];
     let end = i + 1;
-    while (end < src.length && src[end] !== q) end++;
+    while (end < src.length && src[end] !== q) {
+      if (src[end] === '\\') end++;
+      end++;
+    }
     return { value: src.slice(i, end + 1), end: end + 1 };
   }
   let depth = 0;
@@ -94,7 +97,7 @@ type Rewrite = {
 const rewrites: Rewrite[] = [
   // dropColumn(schema, table, column)
   {
-    pattern: /\bdropColumn\(/g,
+    pattern: /(?<!\.)\bdropColumn\(/g,
     rewrite(m) {
       const rest = m.input.slice(m.index + m[0].length);
       const s = readToken(rest, 0);
@@ -108,7 +111,7 @@ const rewrites: Rewrite[] = [
   },
   // setNotNull(schema, table, column)
   {
-    pattern: /\bsetNotNull\(/g,
+    pattern: /(?<!\.)\bsetNotNull\(/g,
     rewrite(m) {
       const rest = m.input.slice(m.index + m[0].length);
       const s = readToken(rest, 0);
@@ -122,7 +125,7 @@ const rewrites: Rewrite[] = [
   },
   // setDefault(schema, table, column, defaultSql)
   {
-    pattern: /\bsetDefault\(/g,
+    pattern: /(?<!\.)\bsetDefault\(/g,
     rewrite(m) {
       const rest = m.input.slice(m.index + m[0].length);
       const s = readToken(rest, 0);
@@ -138,7 +141,7 @@ const rewrites: Rewrite[] = [
   },
   // addPrimaryKey(schema, table, constraintName, columns)
   {
-    pattern: /\baddPrimaryKey\(/g,
+    pattern: /(?<!\.)\baddPrimaryKey\(/g,
     rewrite(m) {
       const rest = m.input.slice(m.index + m[0].length);
       const s = readToken(rest, 0);
@@ -154,7 +157,7 @@ const rewrites: Rewrite[] = [
   },
   // addCheckConstraint(schema, table, constraintName, column, values)
   {
-    pattern: /\baddCheckConstraint\(/g,
+    pattern: /(?<!\.)\baddCheckConstraint\(/g,
     rewrite(m) {
       const rest = m.input.slice(m.index + m[0].length);
       const s = readToken(rest, 0);
@@ -172,7 +175,7 @@ const rewrites: Rewrite[] = [
   },
   // createIndex(schema, table, indexName, columns)
   {
-    pattern: /\bcreateIndex\(/g,
+    pattern: /(?<!\.)\bcreateIndex\(/g,
     rewrite(m) {
       const rest = m.input.slice(m.index + m[0].length);
       const s = readToken(rest, 0);
@@ -188,7 +191,7 @@ const rewrites: Rewrite[] = [
   },
   // addForeignKey(schema, table, { ... }) — wraps opts in `foreignKey:`
   {
-    pattern: /\baddForeignKey\(/g,
+    pattern: /(?<!\.)\baddForeignKey\(/g,
     rewrite(m) {
       const rest = m.input.slice(m.index + m[0].length);
       const s = readToken(rest, 0);
@@ -204,7 +207,7 @@ const rewrites: Rewrite[] = [
 
 function applyRewrites(src: string): string {
   // installExtension already takes an object — just prepend `this.`
-  let out = src.replace(/(?<!this\.)(?<!\.)\binstallExtension\(/g, 'this.installExtension(');
+  let out = src.replace(/(?<!\.)\binstallExtension\(/g, 'this.installExtension(');
 
   for (const { pattern, rewrite } of rewrites) {
     pattern.lastIndex = 0;
@@ -212,13 +215,6 @@ function applyRewrites(src: string): string {
     let last = 0;
     let match = pattern.exec(out);
     while (match !== null) {
-      const before = out.slice(Math.max(0, match.index - 5), match.index);
-      if (before.endsWith('this.')) {
-        result += out.slice(last, match.index + match[0].length);
-        last = match.index + match[0].length;
-        match = pattern.exec(out);
-        continue;
-      }
       const replacement = rewrite(match);
       if (replacement === null) {
         result += out.slice(last, match.index + match[0].length);
@@ -226,12 +222,20 @@ function applyRewrites(src: string): string {
         match = pattern.exec(out);
         continue;
       }
-      // Find the matching closing paren for the original call
+      // Find the matching closing paren for the original call, skipping
+      // quoted string literals so parentheses inside them do not count.
       let depth = 1;
       let end = match.index + match[0].length;
       while (end < out.length && depth > 0) {
-        if (out[end] === '(') depth++;
-        else if (out[end] === ')') depth--;
+        const ch = out[end];
+        if (ch === "'" || ch === '"' || ch === '`') {
+          end++;
+          while (end < out.length && out[end] !== ch) {
+            if (out[end] === '\\') end++;
+            end++;
+          }
+        } else if (ch === '(') depth++;
+        else if (ch === ')') depth--;
         end++;
       }
       result += out.slice(last, match.index) + replacement;
