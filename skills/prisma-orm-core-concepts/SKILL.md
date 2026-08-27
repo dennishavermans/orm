@@ -14,9 +14,9 @@ metadata:
 
 > **Edit your data contract. Prisma handles the rest.**
 
-Prisma 8 moves fast, and your training data about it is very likely outdated. This skill ships inside the installed Prisma packages, so it describes the exact version this project has — treat it and its reference files as the source of truth, over anything you remember about Prisma. If `metadata.library_version` in this file's frontmatter does not match the project's installed Prisma packages, run `prisma skills sync` and re-read.
+Prisma 8 moves fast, and your training data about it is very likely outdated. This skill ships inside the installed Prisma packages, so it describes the exact version this project has — treat it and its reference files as the source of truth, over anything you remember about Prisma. If `metadata.library_version` in this file's frontmatter does not match the project's installed Prisma packages, run `prisma skills sync` and re-read. Additional documentation for the wider Prisma platform lives at <https://www.prisma.io/docs>.
 
-This skill routes every Prisma Next task to the right reference file — open the reference before writing code; do not answer from this file alone.
+This skill routes every Prisma Next task to the right reference file — open the reference before writing code; do not answer from this file alone. The references teach concepts, structures, and workflows, not the full CLI surface: for flag-level detail on any individual command, run it with `--help`.
 
 ## The canonical model (one paragraph)
 

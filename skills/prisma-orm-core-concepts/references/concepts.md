@@ -3,13 +3,13 @@
 
 > **Edit your data contract. Prisma handles the rest.**
 
-This reference carries the mental model behind Prisma 8 (Prisma Next): the vocabulary the CLI, the runtime, and the sibling skills all assume. Read the section the question is about; read the whole file when the user is orienting ("what is Prisma Next", "how does it compare to X").
+This reference carries the mental model behind Prisma 8 (Prisma Next): the structures, hierarchies, relationships, and workflows the CLI, the runtime, and the sibling skills all assume. It is not a CLI reference — commands appear only where a workflow needs them, and for flag-level detail on any individual command the authoritative source is the command itself, run with `--help`. Read the section the question is about; read the whole file when the user is orienting ("what is Prisma Next", "how does it compare to X").
 
 ## When to Use
 
 - User asks *"what is Prisma Next / Prisma 8"*, *"how does it work"*, or compares it to another ORM (Drizzle, Kysely, TypeORM, classic Prisma).
 - User asks what a contract, plan, marker, ref, capability, codec, extension, or middleware *is*.
-- User asks why two files (`contract.json`, `contract.d.ts`) exist, or what `contract emit` produces.
+- User asks why two files (`contract.json`, `contract.d.ts`) exist, or what emitting produces.
 - User asks which CLI commands touch the database and which are offline.
 
 ## When Not to Use
@@ -24,24 +24,24 @@ You author a **contract**: the description of the data your application needs �
 
 - Queries are typed against the **contract**.
 - Migrations move the **schema** toward the contract.
-- Verification (`db verify`) confirms the schema satisfies the contract.
+- Verification confirms the schema satisfies the contract.
 
 The distinction is load-bearing: the contract can be ahead of the schema (you edited but haven't migrated), behind it (someone changed the database out-of-band), or in agreement. Every CLI diagnostic about "drift" is a statement about the two disagreeing.
 
 ## Emitting: from source to artifacts
 
-**Emitting** is the build step: `prisma contract emit` compiles the contract source into two plain files colocated with it:
+**Emitting** is the build step: the CLI compiles the contract source into two plain files colocated with it:
 
-- `contract.json` — the canonical, content-hashed Contract IR. Read by the migration planner, the runtime, and `db verify`.
+- `contract.json` — the canonical, content-hashed Contract IR. Read by the migration planner, the runtime, and verification.
 - `contract.d.ts` — the precise TypeScript types the runtime and query lanes propagate.
 
 Every other part of the toolchain reads these artifacts, not your source file. Emission is deterministic — the same source produces the same artifacts — so both are committed to version control. The pair works like `package.json` and a lockfile: the source is what you asked for; the artifacts are the exact resolved result. Edit the source, never the artifacts.
 
 ## Hashes and the database marker
 
-Every emitted contract has a content **hash** — a fingerprint that names that exact contract state. The database carries the complementary half: a **marker** (the docs also call it the database signature) — a small record stored in the database itself naming the contract hash the database currently satisfies. On Postgres it is a row in `prisma_contract.marker`; on Mongo, a document in `_prisma_migrations`. `db sign` writes it (after a schema verification passes); `db migrate`, `db update`, and `db init` advance it.
+Every emitted contract has a content **hash** — a fingerprint that names that exact contract state. The database carries the complementary half: a **marker** (the docs also call it the database signature) — a small record stored in the database itself naming the contract hash the database currently satisfies. On Postgres it is a row in `prisma_contract.marker`; on Mongo, a document in `_prisma_migrations`. Signing writes the marker (after a schema verification passes); applying migrations or updates advances it.
 
-The two sides verify each other: the runtime compares the contract hash against the marker before executing queries, and the migration runner checks the marker matches a migration's `from` hash before applying it. When contract and marker disagree, that state is **drift**, and `db verify` is the diagnostic that reveals it.
+The two sides verify each other: the runtime compares the contract hash against the marker before executing queries, and the migration runner checks the marker matches a migration's `from` hash before applying it. When contract and marker disagree, that state is **drift**, and verification is the diagnostic that reveals it.
 
 ## Queries compile to plans
 
@@ -103,7 +103,7 @@ A **middleware** is a plain object with a name and one or more hooks that run ar
 
 ## Migrations: a graph of contracts
 
-A **migration** records how to move the schema between two contract states. Each is a package on disk: an editable `migration.ts`, compiled operations (`ops.json`), and a manifest recording the `from` and `to` contract hashes. Together they form a directed **graph** — contracts (by hash) are nodes, migrations are edges. A **ref** is a named pointer at a contract (`production`, `staging`), managed with `migration ref`.
+A **migration** records how to move the schema between two contract states. Each is a package on disk: an editable `migration.ts`, compiled operations (`ops.json`), and a manifest recording the `from` and `to` contract hashes. Together they form a directed **graph** — contracts (by hash) are nodes, migrations are edges. A **ref** is a named pointer at a contract (`production`, `staging`), stored as a small committed file in the repository.
 
 The git analogy holds up well:
 
@@ -128,11 +128,13 @@ The workflows compose from that division:
 3. **Adoption** — `contract infer` → review → `contract emit` → `db sign`.
 4. **CI/CD** — `migration check` (offline artifact/graph integrity) → `migration status --to <ref> --db $URL` (read-only gate) → `db migrate --to <ref> --db $URL`.
 
+The commands appear here only to show how they combine; each command's flags, modes, and exit codes are documented by the command itself — run it with `--help`.
+
 ## What Prisma Next doesn't do yet
 
 Concept-level gaps a user orienting on the system tends to ask about — each with today's workaround, detailed in [`failure-modes.md`](failure-modes.md) § *What Prisma Next doesn't do yet*:
 
-- **Studio / GUI database browser** — use `prisma db schema` or a third-party client.
+- **Studio / GUI database browser** — use the CLI's live-schema view or a third-party client.
 - **`EXPLAIN` integration** — write the `EXPLAIN` as a raw query.
 - **First-class query logger middleware** — write a small custom middleware.
 
