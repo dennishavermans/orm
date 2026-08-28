@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, rm, stat } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -53,6 +53,14 @@ test('concurrent syncs of one package all succeed and leave an intact tree', asy
       Array.from({ length: 3 }, () => execFileAsync('node', [scriptPath, PACKAGE_NAME])),
     );
   }
+  assertNoWorkdirLeftovers();
+  assertSyncedTreeMatchesSource();
+});
+
+test('concurrent in-process syncs of one package all succeed', async () => {
+  // Start cold so every call takes the swap path rather than the no-op path.
+  await rm(skillsDir, { recursive: true, force: true });
+  await Promise.all(Array.from({ length: 4 }, () => syncPackageSkills(PACKAGE_NAME)));
   assertNoWorkdirLeftovers();
   assertSyncedTreeMatchesSource();
 });

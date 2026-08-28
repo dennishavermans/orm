@@ -62,7 +62,15 @@ async function treesMatch(expectedDir: string, actualDir: string): Promise<boole
   return true;
 }
 
+/**
+ * Concurrent in-process calls must not share work directories either, so the
+ * pid is paired with a per-invocation counter.
+ */
+let invocation = 0;
+
 export async function syncPackageSkills(packageName: string): Promise<readonly string[]> {
+  invocation += 1;
+  const workId = `${process.pid}-${invocation}`;
   const packageDir = SKILL_ANCHOR_PACKAGES.get(packageName);
   if (packageDir === undefined) {
     const shipping = [...SKILL_ANCHOR_PACKAGES.keys()].join(', ');
@@ -73,7 +81,7 @@ export async function syncPackageSkills(packageName: string): Promise<readonly s
   // each pack re-runs this prepack) must never observe a half-copied tree, so
   // the copies are staged in a temporary sibling and swapped in with renames.
   const skillsDir = path.join(rootDir, packageDir, 'skills');
-  const stagingDir = `${skillsDir}.staging-${process.pid}`;
+  const stagingDir = `${skillsDir}.staging-${workId}`;
   const results = SKILL_NAMES.map((skillName) => path.join(skillsDir, skillName));
   await fs.rm(stagingDir, { recursive: true, force: true });
   for (const skillName of SKILL_NAMES) {
@@ -104,7 +112,7 @@ export async function syncPackageSkills(packageName: string): Promise<readonly s
   // swap converges instead of failing the pack. Retiring the old tree via
   // rename (not a progressive recursive delete) keeps the path's absence down
   // to the instant between the two renames.
-  const trashDir = `${skillsDir}.trash-${process.pid}`;
+  const trashDir = `${skillsDir}.trash-${workId}`;
   for (let attempt = 1; ; attempt += 1) {
     try {
       await fs.rm(trashDir, { recursive: true, force: true });
