@@ -40,24 +40,44 @@ export async function syncPackageSkills(packageName: string): Promise<readonly s
     throw new Error(`${packageName} does not ship the Prisma skills; expected ${shipping}`);
   }
 
-  const destinations: string[] = [];
-  await fs.rm(path.join(rootDir, packageDir, 'skills'), { recursive: true, force: true });
+  // Concurrent packs of the same package (tarball tests run in parallel and
+  // each pack re-runs this prepack) must never observe a half-copied tree, so
+  // the copies are staged in a temporary sibling and swapped in with a rename.
+  const skillsDir = path.join(rootDir, packageDir, 'skills');
+  const stagingDir = `${skillsDir}.staging-${process.pid}`;
+  await fs.rm(stagingDir, { recursive: true, force: true });
   for (const skillName of SKILL_NAMES) {
     const source = path.join(rootDir, 'skills', skillName);
-    const destination = path.join(rootDir, packageDir, 'skills', skillName);
-    await fs.cp(source, destination, { recursive: true });
+    const staged = path.join(stagingDir, skillName);
+    await fs.cp(source, staged, { recursive: true });
 
     // The source tree names one canonical package; each copy names its own,
     // so a consumer reading the copy sees the package it resolved it from.
-    const skillMd = path.join(destination, 'SKILL.md');
+    const skillMd = path.join(staged, 'SKILL.md');
     await fs.writeFile(
       skillMd,
       stampSkillMetadata(await fs.readFile(skillMd, 'utf-8'), 'library', packageName),
     );
-    destinations.push(destination);
   }
 
-  return destinations;
+  // The swap can still collide with a concurrent prepack: their rename can
+  // repopulate the path mid-delete (ENOTEMPTY from rm) or land first (rename
+  // refuses an existing destination). Every copy carries identical content,
+  // so retrying the whole swap converges instead of failing the pack.
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await fs.rm(skillsDir, { recursive: true, force: true });
+      await fs.rename(stagingDir, skillsDir);
+      break;
+    } catch (error) {
+      if (attempt >= 5) {
+        await fs.rm(stagingDir, { recursive: true, force: true });
+        throw error;
+      }
+    }
+  }
+
+  return SKILL_NAMES.map((skillName) => path.join(skillsDir, skillName));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
