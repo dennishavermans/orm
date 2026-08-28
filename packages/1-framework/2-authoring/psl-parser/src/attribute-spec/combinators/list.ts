@@ -17,13 +17,14 @@ export function list<T, Ctx extends BlockInterpretCtx>(
     kind: 'list',
     label: `${of.label}[]`,
     parse: (arg, ctx): Result<T[], readonly PslDiagnostic[]> => {
-      if (!(arg instanceof ArrayLiteralAst)) {
+      const array = ArrayLiteralAst.cast(arg.syntax);
+      if (array === undefined) {
         return notOk([leafDiagnostic(ctx, arg, `Expected a list of ${of.label}`)]);
       }
       const diagnostics: PslDiagnostic[] = [];
       const parsed: { node: ExpressionAst; value: T }[] = [];
       let count = 0;
-      for (const element of arg.elements()) {
+      for (const element of array.elements()) {
         count += 1;
         const result = of.parse(element, ctx);
         if (result.ok) parsed.push({ node: element, value: result.value });

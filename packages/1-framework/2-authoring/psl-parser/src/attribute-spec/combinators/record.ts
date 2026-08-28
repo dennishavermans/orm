@@ -11,13 +11,14 @@ export function record<T, Ctx extends BlockInterpretCtx>(
     kind: 'record',
     label: `{ [key]: ${of.label} }`,
     parse: (arg, ctx): Result<Record<string, T>, readonly PslDiagnostic[]> => {
-      if (!(arg instanceof ObjectLiteralExprAst)) {
+      const object = ObjectLiteralExprAst.cast(arg.syntax);
+      if (object === undefined) {
         return notOk([leafDiagnostic(ctx, arg, 'Expected an object literal')]);
       }
       const diagnostics: PslDiagnostic[] = [];
       const entries: [string, T][] = [];
       const keys = new Set<string>();
-      for (const field of arg.fields()) {
+      for (const field of object.fields()) {
         const key = field.keyName();
         if (key === undefined) {
           diagnostics.push(leafDiagnostic(ctx, field, 'Expected a key'));
