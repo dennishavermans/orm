@@ -142,6 +142,10 @@ export interface TransactionContext extends RuntimeQueryable {
 
 export type { RuntimeTelemetryEvent, TelemetryOutcome, VerifyMarkerOption };
 
+interface PendingTelemetryEvent extends Omit<RuntimeTelemetryEvent, 'fingerprint'> {
+  readonly sql: string;
+}
+
 function isExecutionPlan(plan: SqlExecutionPlan | SqlQueryPlan): plan is SqlExecutionPlan {
   return 'sql' in plan;
 }
@@ -171,7 +175,8 @@ export abstract class SqlRuntimeBase<TContract extends Contract<SqlStorage> = Co
   private verifyMarkerPromise: Promise<void> | null;
   readonly #preparedStatementHandles = new WeakMap<object, unknown>();
   private codecRegistryValidated: boolean;
-  private _telemetry: RuntimeTelemetryEvent | null;
+  private _telemetry: PendingTelemetryEvent | null;
+  private _telemetryFingerprinted: RuntimeTelemetryEvent | null;
 
   constructor(options: RuntimeOptions<TContract>) {
     const { context, adapter, driver, verifyMarker, middleware, mode, log } = options;
@@ -215,6 +220,7 @@ export abstract class SqlRuntimeBase<TContract extends Contract<SqlStorage> = Co
     this.codecRegistryValidated = false;
     this.verifyMarkerPromise = this.verifyMarkerOption === false ? Promise.resolve() : null;
     this._telemetry = null;
+    this._telemetryFingerprinted = null;
   }
 
   /**
@@ -365,6 +371,7 @@ export abstract class SqlRuntimeBase<TContract extends Contract<SqlStorage> = Co
   private async setupDriverExecution(exec: SqlExecutionPlan): Promise<void> {
     this.familyAdapter.validatePlan(exec, this.contract);
     this._telemetry = null;
+    this._telemetryFingerprinted = null;
     if (this.verifyMarkerPromise === null) {
       this.verifyMarkerPromise = this.verifyMarker();
     }
@@ -881,7 +888,19 @@ export abstract class SqlRuntimeBase<TContract extends Contract<SqlStorage> = Co
   }
 
   telemetry(): RuntimeTelemetryEvent | null {
-    return this._telemetry;
+    if (this._telemetryFingerprinted !== null) {
+      return this._telemetryFingerprinted;
+    }
+    const pending = this._telemetry;
+    if (pending === null) {
+      return null;
+    }
+    const { sql, ...rest } = pending;
+    this._telemetryFingerprinted = Object.freeze({
+      ...rest,
+      fingerprint: computeSqlFingerprint(sql),
+    });
+    return this._telemetryFingerprinted;
   }
 
   async close(): Promise<void> {
@@ -935,13 +954,14 @@ export abstract class SqlRuntimeBase<TContract extends Contract<SqlStorage> = Co
     durationMs?: number,
   ): void {
     const contract = this.contract as { target: string };
-    this._telemetry = Object.freeze({
+    this._telemetry = {
       lane: plan.meta.lane,
       target: contract.target,
-      fingerprint: computeSqlFingerprint(plan.sql),
+      sql: plan.sql,
       outcome,
       ...(durationMs !== undefined ? { durationMs } : {}),
-    });
+    };
+    this._telemetryFingerprinted = null;
   }
 }
 

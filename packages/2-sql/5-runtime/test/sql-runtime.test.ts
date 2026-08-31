@@ -280,6 +280,64 @@ describe('SqlRuntime', () => {
     expect(runtime.telemetry()).toBeNull();
   });
 
+  it('fingerprints lazily, only when telemetry() is read', async () => {
+    const { stackInstance, context, driver } = createTestSetup();
+    const runtime = createRuntime({ stackInstance, context, driver, verifyMarker: false });
+
+    await runtime
+      .query(createRawExecutionPlan({ sql: "select 1 where x = 'a' and y = 42" }))
+      .toArray();
+
+    const event = runtime.telemetry();
+    expect(event).toEqual(
+      expect.objectContaining({ lane: 'raw', target: 'postgres', outcome: 'success' }),
+    );
+    expect(event?.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('returns a stable fingerprint across repeated telemetry() reads', async () => {
+    const { stackInstance, context, driver } = createTestSetup();
+    const runtime = createRuntime({ stackInstance, context, driver, verifyMarker: false });
+
+    await runtime.query(createRawExecutionPlan()).toArray();
+
+    expect(runtime.telemetry()?.fingerprint).toBe(runtime.telemetry()?.fingerprint);
+  });
+
+  it('groups statements differing only in literals under one fingerprint', async () => {
+    const { stackInstance, context, driver } = createTestSetup();
+    const runtime = createRuntime({ stackInstance, context, driver, verifyMarker: false });
+
+    await runtime.query(createRawExecutionPlan({ sql: 'select 1 where id = 7' })).toArray();
+    const first = runtime.telemetry()?.fingerprint;
+
+    await runtime.query(createRawExecutionPlan({ sql: 'select 1 where id = 99' })).toArray();
+    const second = runtime.telemetry()?.fingerprint;
+
+    expect(first).toBe(second);
+  });
+
+  it('separates structurally different statements by fingerprint', async () => {
+    const { stackInstance, context, driver } = createTestSetup();
+    const runtime = createRuntime({ stackInstance, context, driver, verifyMarker: false });
+
+    await runtime.query(createRawExecutionPlan({ sql: 'select 1 where id = 7' })).toArray();
+    const first = runtime.telemetry()?.fingerprint;
+
+    await runtime.query(createRawExecutionPlan({ sql: 'select 2 from other' })).toArray();
+    const second = runtime.telemetry()?.fingerprint;
+
+    expect(first).not.toBe(second);
+  });
+
+  it('resets telemetry to null when a new execution starts', async () => {
+    const { stackInstance, context, driver } = createTestSetup();
+    const runtime = createRuntime({ stackInstance, context, driver, verifyMarker: false });
+
+    await runtime.query(createRawExecutionPlan()).toArray();
+    expect(runtime.telemetry()).not.toBeNull();
+  });
+
   it('closes runtime and driver', async () => {
     const { stackInstance, context, driver } = createTestSetup();
 
