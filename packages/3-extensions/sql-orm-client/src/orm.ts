@@ -6,7 +6,12 @@ import type {
 } from '@internal/sql-relational-core/query-lane-context';
 import { blindCast } from '@internal/utils/casts';
 import { aggregateOperationNames } from './aggregate-operations';
-import { type Collection, CollectionBase, reservedCollectionMemberNames } from './collection';
+import {
+  type Collection,
+  CollectionBase,
+  installAggregateReducers,
+  reservedCollectionMemberNames,
+} from './collection';
 import { ormError } from './orm-errors';
 import { domainModelNamesInNamespace, domainModelTableInNamespace } from './storage-resolution';
 import type {
@@ -143,12 +148,34 @@ export function orm<
         options?: Record<string, unknown>,
       ) => AnyCollection,
       'a registered collection class is a Collection subclass constructor'
-    >(CollectionClass);
+    >(withReducers(CollectionClass));
     return new CollectionCtor(ctx, modelName, {
       registry: collectionRegistry,
       namespaceId,
       ...(tableName !== undefined ? { tableName } : {}),
     });
+  }
+
+  const reducerCtors = new Map<AnyCollectionClass, AnyCollectionClass>();
+
+  function withReducers(CollectionClass: AnyCollectionClass): AnyCollectionClass {
+    const cached = reducerCtors.get(CollectionClass);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const derived = installAggregateReducers(
+      blindCast<
+        Parameters<typeof installAggregateReducers>[0],
+        'a registered collection class is a Collection subclass constructor'
+      >(CollectionClass),
+      context.aggregateDescriptors,
+    );
+    const ctor = blindCast<
+      AnyCollectionClass,
+      'the generated reducer subclass preserves the collection constructor contract'
+    >(derived);
+    reducerCtors.set(CollectionClass, ctor);
+    return ctor;
   }
 
   const namespaceFacets = new Map<string, object>();

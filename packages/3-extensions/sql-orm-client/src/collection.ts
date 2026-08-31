@@ -16,6 +16,7 @@ import {
   type ToWhereExpr,
   type WhereArg,
 } from '@internal/sql-relational-core/ast';
+import type { SqlAggregateDescriptorRegistry } from '@internal/sql-relational-core/query-lane-context';
 import { blindCast } from '@internal/utils/casts';
 import { ifDefined } from '@internal/utils/defined';
 import { InternalError } from '@internal/utils/internal-error';
@@ -213,6 +214,19 @@ interface MtiCreateContext {
   pkColumn: string;
 }
 
+const AGGREGATE_REDUCERS_ON_PROTOTYPE = Symbol('aggregateReducersOnPrototype');
+
+type AnyCollectionConstructor = new (
+  ...args: never[]
+) => CollectionImpl<Contract<SqlStorage>, string, unknown, CollectionTypeState>;
+
+const reducerSubclasses = new WeakMap<object, WeakMap<object, AnyCollectionConstructor>>();
+
+export let installAggregateReducers: (
+  Base: AnyCollectionConstructor,
+  aggregateDescriptors: SqlAggregateDescriptorRegistry,
+) => AnyCollectionConstructor;
+
 class CollectionImpl<
   TContract extends Contract<SqlStorage>,
   ModelName extends string,
@@ -274,6 +288,9 @@ class CollectionImpl<
    * does not match the reducer's signature is a type error.
    */
   #installAggregateReducers(): void {
+    if (AGGREGATE_REDUCERS_ON_PROTOTYPE in this) {
+      return;
+    }
     for (const operation of aggregateOperationNames(this.ctx.context.aggregateDescriptors)) {
       if (operation in this) {
         continue;
@@ -285,6 +302,45 @@ class CollectionImpl<
         configurable: true,
       });
     }
+  }
+
+  static {
+    installAggregateReducers = (Base, aggregateDescriptors) => {
+      let perBase = reducerSubclasses.get(Base);
+      if (perBase === undefined) {
+        perBase = new WeakMap();
+        reducerSubclasses.set(Base, perBase);
+      }
+      const cached = perBase.get(aggregateDescriptors);
+      if (cached !== undefined) {
+        return cached;
+      }
+
+      const Derived = class extends Base {};
+      const proto = Derived.prototype;
+      Object.defineProperty(proto, AGGREGATE_REDUCERS_ON_PROTOTYPE, {
+        value: true,
+        enumerable: false,
+        configurable: true,
+      });
+
+      for (const operation of aggregateOperationNames(aggregateDescriptors)) {
+        if (operation in Base.prototype) {
+          continue;
+        }
+        Object.defineProperty(proto, operation, {
+          value: function (this: CollectionImpl<Contract<SqlStorage>, string>, field?: string) {
+            return this.#includeScalarReducer(operation, field);
+          },
+          writable: true,
+          enumerable: false,
+          configurable: true,
+        });
+      }
+
+      perBase.set(aggregateDescriptors, Derived);
+      return Derived;
+    };
   }
 
   /**
