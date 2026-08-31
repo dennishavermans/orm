@@ -74,8 +74,28 @@ export function modelOf(
     : blindCast<ModelEntry, 'domain namespace model is a model entry for this SQL contract'>(model);
 }
 
-const fieldToColumnCache = new WeakMap<object, Map<string, Record<string, string>>>();
-const columnToFieldCache = new WeakMap<object, Map<string, Record<string, string>>>();
+type ModelMetadataCache<T> = WeakMap<object, Map<string, Map<string, T>>>;
+
+function metadataCacheSlot<T>(
+  cache: ModelMetadataCache<T>,
+  contract: Contract<SqlStorage>,
+  namespaceId: string,
+): Map<string, T> {
+  let perContract = cache.get(contract);
+  if (!perContract) {
+    perContract = new Map();
+    cache.set(contract, perContract);
+  }
+  let perNamespace = perContract.get(namespaceId);
+  if (!perNamespace) {
+    perNamespace = new Map();
+    perContract.set(namespaceId, perNamespace);
+  }
+  return perNamespace;
+}
+
+const fieldToColumnCache: ModelMetadataCache<Record<string, string>> = new WeakMap();
+const columnToFieldCache: ModelMetadataCache<Record<string, string>> = new WeakMap();
 const polymorphismCache = new WeakMap<object, Map<string, PolymorphismInfo | undefined>>();
 
 export function resolvePolymorphismInfo(
@@ -210,13 +230,8 @@ export function getFieldToColumnMap(
   namespaceId: string,
   modelName: string,
 ): Record<string, string> {
-  let perContract = fieldToColumnCache.get(contract);
-  if (!perContract) {
-    perContract = new Map();
-    fieldToColumnCache.set(contract, perContract);
-  }
-  const cacheKey = metadataCacheKey(namespaceId, modelName);
-  let cached = perContract.get(cacheKey);
+  const slot = metadataCacheSlot(fieldToColumnCache, contract, namespaceId);
+  let cached = slot.get(modelName);
   if (cached) return cached;
 
   const storageFields = modelsOf(contract, namespaceId)[modelName]?.storage?.fields ?? {};
@@ -224,7 +239,7 @@ export function getFieldToColumnMap(
   for (const [f, s] of Object.entries(storageFields)) {
     if (s?.column) cached[f] = s.column;
   }
-  perContract.set(cacheKey, cached);
+  slot.set(modelName, cached);
   return cached;
 }
 
@@ -233,13 +248,8 @@ export function getColumnToFieldMap(
   namespaceId: string,
   modelName: string,
 ): Record<string, string> {
-  let perContract = columnToFieldCache.get(contract);
-  if (!perContract) {
-    perContract = new Map();
-    columnToFieldCache.set(contract, perContract);
-  }
-  const cacheKey = metadataCacheKey(namespaceId, modelName);
-  let cached = perContract.get(cacheKey);
+  const slot = metadataCacheSlot(columnToFieldCache, contract, namespaceId);
+  let cached = slot.get(modelName);
   if (cached) return cached;
 
   const storageFields = modelsOf(contract, namespaceId)[modelName]?.storage?.fields ?? {};
@@ -247,7 +257,7 @@ export function getColumnToFieldMap(
   for (const [f, s] of Object.entries(storageFields)) {
     if (s?.column) cached[s.column] = f;
   }
-  perContract.set(cacheKey, cached);
+  slot.set(modelName, cached);
   return cached;
 }
 

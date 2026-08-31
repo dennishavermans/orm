@@ -32,6 +32,42 @@ describe('collection-runtime', () => {
     });
   });
 
+  it('mapStorageRowToModelFields() preserves undefined and null column values', () => {
+    expect(
+      mapStorageRowToModelFields(contract, 'public', 'Post', {
+        id: 1,
+        user_id: null,
+        custom: undefined,
+      }),
+    ).toEqual({ id: 1, userId: null, custom: undefined });
+  });
+
+  it('mapStorageRowToModelFields() returns a fresh object that does not alias the row', () => {
+    const row = { id: 1, user_id: 2 };
+    const mapped = mapStorageRowToModelFields(contract, 'public', 'Post', row);
+
+    mapped['id'] = 99;
+
+    expect(row.id).toBe(1);
+  });
+
+  it('mapStorageRowToModelFields() copies an unmapped model row verbatim', () => {
+    expect(
+      mapStorageRowToModelFields(contract, 'public', 'UnknownModel', { a: 1, b: 'two', c: null }),
+    ).toEqual({ a: 1, b: 'two', c: null });
+  });
+
+  it('mapStorageRowToModelFields() ignores inherited enumerable properties', () => {
+    const row = Object.create({ inherited: 'nope' }) as Record<string, unknown>;
+    row['id'] = 1;
+
+    expect(mapStorageRowToModelFields(contract, 'public', 'Post', row)).toEqual({ id: 1 });
+  });
+
+  it('mapStorageRowToModelFields() maps an empty row to an empty object', () => {
+    expect(mapStorageRowToModelFields(contract, 'public', 'Post', {})).toEqual({});
+  });
+
   it('mapModelDataToStorageRow() maps fields and skips undefined values', () => {
     expect(
       mapModelDataToStorageRow(contract, 'public', 'Post', {
