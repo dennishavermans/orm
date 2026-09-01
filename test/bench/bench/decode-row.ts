@@ -63,7 +63,11 @@ function createBenchmarkCases(
     if (!rows) {
       throw new Error(`No fixture rows for query "${name}"`);
     }
-    return { name, rows, decodeCtx: buildDecodeContext(plan.ast, contractCodecs) };
+    return {
+      name,
+      rows,
+      decodeCtx: buildDecodeContext(plan.ast, contractCodecs, { reusable: true }),
+    };
   });
 }
 

@@ -14,7 +14,7 @@ import {
 } from '@internal/sql-relational-core/ast';
 import type { SqlExecutionPlan } from '@internal/sql-relational-core/plan';
 import { timeouts } from '@repo/test-utils';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildDecodeContext, decodeRow } from '../src/codecs/decoding';
 import { encodeParams } from '../src/codecs/encoding';
 import { createAsyncSecretCodec, decryptSecret, encryptSecret } from './seeded-secret-codec';
@@ -376,15 +376,19 @@ describe('decodeRow — async, concurrent per-cell dispatch', () => {
   it('dispatches later cells after an earlier codec throws synchronously', async () => {
     const cause = new Error('sync failure');
     let laterCalls = 0;
-    const registry = [
-      defineTestCodec({
+    const syncThrowCodec: Codec = {
+      ...defineTestCodec({
         typeId: 'test/sync-throw@1',
         targetTypes: ['text'],
         encode: (value: string) => value,
-        decode: () => {
-          throw cause;
-        },
+        decode: (wire: string) => wire,
       }),
+      decode: () => {
+        throw cause;
+      },
+    };
+    const registry: Codec[] = [
+      syncThrowCodec,
       defineTestCodec({
         typeId: 'test/later@1',
         targetTypes: ['text'],
@@ -554,17 +558,38 @@ describe('decodeRow — async, concurrent per-cell dispatch', () => {
     expect(result).toEqual({ before: 1, name: 'ALICE', nullable: null, after: 3 });
   });
 
-  it('treats projection aliases as data when compiling a row shape', async () => {
+  it('uses the generic decoder for one-shot contexts', async () => {
+    const plan = buildAstPlan({ projections: [{ alias: 'value' }] });
+    const context = buildDecodeContext(plan.ast, buildTestContractCodecs([]));
+
+    expect(context.compiled).toBeUndefined();
+    await expect(decodeRow({ value: 'safe' }, context, {})).resolves.toEqual({ value: 'safe' });
+  });
+
+  it('treats projection aliases as data when compiling a reusable row shape', async () => {
     const alias = 'field"];\nthrow new Error("injected") //';
     const plan = buildAstPlan({ projections: [{ alias }] });
+    const context = buildDecodeContext(plan.ast, buildTestContractCodecs([]), { reusable: true });
 
-    const result = await decodeRow(
-      { [alias]: 'safe' },
-      buildDecodeContext(plan.ast, buildTestContractCodecs([])),
-      {},
-    );
+    expect(context.compiled).toBeDefined();
+    await expect(decodeRow({ [alias]: 'safe' }, context, {})).resolves.toEqual({ [alias]: 'safe' });
+  });
 
-    expect(result).toEqual({ [alias]: 'safe' });
+  it('falls back to the generic decoder when reusable context compilation is unavailable', async () => {
+    const plan = buildAstPlan({ projections: [{ alias: 'value' }] });
+    vi.stubGlobal('Function', function unavailableFunctionConstructor(): never {
+      throw new EvalError('unsafe-eval is disabled');
+    });
+
+    try {
+      const context = buildDecodeContext(plan.ast, buildTestContractCodecs([]), {
+        reusable: true,
+      });
+      expect(context.compiled).toBeUndefined();
+      await expect(decodeRow({ value: 'safe' }, context, {})).resolves.toEqual({ value: 'safe' });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('passes wire values through for raw plans (no AST, no codec decoding)', async () => {
@@ -602,6 +627,21 @@ describe('decodeRow — async, concurrent per-cell dispatch', () => {
         alias: 'email',
         expectedAliases: ['id', 'email'],
         presentKeys: ['id'],
+      },
+    });
+  });
+
+  it('rejects an inherited projection alias as missing', async () => {
+    const plan = buildAstPlan({ projections: [{ alias: 'toString' }] });
+
+    await expect(
+      decodeRow({}, buildDecodeContext(plan.ast, buildTestContractCodecs([])), {}),
+    ).rejects.toMatchObject({
+      code: 'RUNTIME.DECODE_FAILED',
+      details: {
+        alias: 'toString',
+        expectedAliases: ['toString'],
+        presentKeys: [],
       },
     });
   });

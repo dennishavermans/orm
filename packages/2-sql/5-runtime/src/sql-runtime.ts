@@ -578,7 +578,9 @@ export abstract class SqlRuntimeBase<TContract extends Contract<SqlStorage> = Co
       params: orderedRefs.map((r) => (r.kind === 'param-ref' ? r.value : undefined)),
     });
 
-    const decodeContext = buildDecodeContext(finalPlan.ast, this.contractCodecs);
+    const decodeContext = buildDecodeContext(finalPlan.ast, this.contractCodecs, {
+      reusable: true,
+    });
     const paramMetadata = deriveParamMetadata(finalPlan.ast);
 
     const internals: PreparedStatementInternals = Object.freeze({

@@ -9,6 +9,7 @@ import type {
   ContractCodecRegistry,
   ProjectionItem,
   RawQueryAst,
+  RawQueryColumn,
   SqlCodecCallContext,
 } from '@internal/sql-relational-core/ast';
 import { blindCast } from '@internal/utils/casts';
@@ -40,7 +41,7 @@ interface CompiledRowDecoder {
 export interface DecodeContext {
   readonly aliases: ReadonlyArray<string> | undefined;
   readonly fields: ReadonlyArray<DecodeFieldPlan> | undefined;
-  readonly compiled?: CompiledRowDecoder;
+  readonly compiled: CompiledRowDecoder | undefined;
   readonly codecs: ReadonlyMap<string, Codec>;
   readonly columnRefs: ReadonlyMap<string, ColumnRef>;
   readonly includeAliases: ReadonlySet<string>;
@@ -56,28 +57,6 @@ export interface DecodeContext {
 
 const WIRE_PREVIEW_LIMIT = 100;
 const EMPTY_INCLUDE_ALIASES: ReadonlySet<string> = new Set<string>();
-
-function projectionListFromAst(ast: unknown): ReadonlyArray<ProjectionItem> | undefined {
-  if (typeof ast !== 'object' || ast === null) {
-    return undefined;
-  }
-  if ('kind' in ast && ast.kind === 'select') {
-    if (!('projection' in ast) || !Array.isArray(ast.projection)) {
-      return undefined;
-    }
-    return blindCast<
-      ReadonlyArray<ProjectionItem>,
-      'Array.isArray validates the projection list and the query AST validator guarantees its items'
-    >(ast.projection);
-  }
-  if (!('returning' in ast) || ast.returning === undefined || !Array.isArray(ast.returning)) {
-    return undefined;
-  }
-  return blindCast<
-    ReadonlyArray<ProjectionItem>,
-    'Array.isArray validates the returning list and the query AST validator guarantees its items'
-  >(ast.returning);
-}
 
 function resolveProjectionCodec(
   item: ProjectionItem,
@@ -95,6 +74,7 @@ function undecodedContext(): DecodeContext {
   return {
     aliases: undefined,
     fields: undefined,
+    compiled: undefined,
     codecs: new Map(),
     columnRefs: new Map(),
     includeAliases: EMPTY_INCLUDE_ALIASES,
@@ -115,6 +95,7 @@ function undecodedContext(): DecodeContext {
 function rawQueryDecodeContext(
   ast: RawQueryAst,
   contractCodecs: ContractCodecRegistry | undefined,
+  options: BuildDecodeContextOptions,
 ): DecodeContext {
   if (ast.result.kind === 'affected-count') {
     return undecodedContext();
@@ -123,16 +104,9 @@ function rawQueryDecodeContext(
   const aliases: string[] = [];
   const fields: DecodeFieldPlan[] = [];
   const codecs = new Map<string, Codec>();
-  for (const [name, column] of Object.entries(ast.result.columns)) {
+  for (const [name, column] of Object.entries<RawQueryColumn>(ast.result.columns)) {
     aliases.push(name);
-    if (typeof column !== 'object' || column === null || !('codecId' in column)) {
-      throw new TypeError(`Raw query column "${name}" has no codecId`);
-    }
-    const codecId = column.codecId;
-    if (typeof codecId !== 'string') {
-      throw new TypeError(`Raw query column "${name}" has a non-string codecId`);
-    }
-    const codec = contractCodecs?.forCodecRef({ codecId });
+    const codec = contractCodecs?.forCodecRef({ codecId: column.codecId });
     if (codec) {
       codecs.set(name, codec);
     }
@@ -149,7 +123,7 @@ function rawQueryDecodeContext(
   return {
     aliases,
     fields,
-    compiled: compileRowDecoder(fields),
+    compiled: options.reusable ? compileRowDecoder(fields) : undefined,
     codecs,
     columnRefs: new Map(),
     includeAliases: EMPTY_INCLUDE_ALIASES,
@@ -158,15 +132,20 @@ function rawQueryDecodeContext(
   };
 }
 
+export interface BuildDecodeContextOptions {
+  readonly reusable?: boolean;
+}
+
 export function buildDecodeContext(
   ast: AnyQueryAst,
   contractCodecs: ContractCodecRegistry | undefined,
+  options: BuildDecodeContextOptions = {},
 ): DecodeContext {
   if (ast.kind === 'raw-query') {
-    return rawQueryDecodeContext(ast, contractCodecs);
+    return rawQueryDecodeContext(ast, contractCodecs, options);
   }
 
-  const projection = projectionListFromAst(ast);
+  const projection = ast.kind === 'select' ? ast.projection : ast.returning;
   if (!projection || projection.length === 0) {
     return undecodedContext();
   }
@@ -207,7 +186,7 @@ export function buildDecodeContext(
   return {
     aliases,
     fields,
-    compiled: compileRowDecoder(fields),
+    compiled: options.reusable ? compileRowDecoder(fields) : undefined,
     codecs,
     columnRefs,
     includeAliases,
@@ -370,7 +349,7 @@ function decodeField(
   }
 }
 
-function compileRowDecoder(fields: ReadonlyArray<DecodeFieldPlan>): CompiledRowDecoder {
+function compileRowDecoder(fields: ReadonlyArray<DecodeFieldPlan>): CompiledRowDecoder | undefined {
   const taskExpressions = fields.map((field, index) =>
     field.include
       ? 'Promise.resolve(undefined)'
@@ -383,20 +362,24 @@ function compileRowDecoder(fields: ReadonlyArray<DecodeFieldPlan>): CompiledRowD
       : `settled[${index}]`;
     return `[${alias}]: ${value}`;
   });
-  const create = new Function(
-    'decodeField',
-    'decodeIncludeAggregate',
-    'fields',
-    `"use strict";
+  try {
+    const create = new Function(
+      'decodeField',
+      'decodeIncludeAggregate',
+      'fields',
+      `"use strict";
 return {
   createTasks(row, rowCtx) { return [${taskExpressions.join(',')}]; },
   createResult(row, settled) { return {${resultProperties.join(',')}}; }
 };`,
-  );
-  return blindCast<
-    CompiledRowDecoder,
-    'new Function is generated exclusively from JSON-escaped aliases and numeric field indices'
-  >(create(decodeField, decodeIncludeAggregate, fields));
+    );
+    return blindCast<
+      CompiledRowDecoder,
+      'new Function is generated exclusively from JSON-escaped aliases and numeric field indices'
+    >(create(decodeField, decodeIncludeAggregate, fields));
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -420,7 +403,7 @@ export async function decodeRow(
 
   if (decodeCtx.aliases !== undefined) {
     for (const alias of decodeCtx.aliases) {
-      if (row[alias] === undefined && !Object.hasOwn(row, alias)) {
+      if (!Object.hasOwn(row, alias)) {
         throw decodeCtx.aliasSource === 'row-spec'
           ? runtimeError(
               'RUNTIME.RAW_ROW_COLUMN_MISSING',
