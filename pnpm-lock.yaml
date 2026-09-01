@@ -5127,6 +5127,24 @@ importers:
         specifier: 'catalog:'
         version: 5.9.3
 
+  test/bench:
+    dependencies:
+      '@internal/postgres':
+        specifier: workspace:8.0.0-rc.8
+        version: link:../../packages/3-extensions/postgres
+      '@internal/sql-runtime':
+        specifier: workspace:8.0.0-rc.8
+        version: link:../../packages/2-sql/5-runtime
+      temporal-polyfill:
+        specifier: ^1.0.4
+        version: 1.0.4
+      tinybench:
+        specifier: ^6.1.3
+        version: 6.1.3
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
+
   test/e2e/framework:
     dependencies:
       '@prisma/orm-extension-arktype-json':

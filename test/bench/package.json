@@ -1,0 +1,19 @@
+{
+  "name": "benchmarks",
+  "version": "8.0.0-rc.8",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bench": "tsx bench/decode-row.ts"
+  },
+  "dependencies": {
+    "@internal/postgres": "workspace:8.0.0-rc.8",
+    "@internal/sql-runtime": "workspace:8.0.0-rc.8",
+    "temporal-polyfill": "^1.0.4",
+    "tinybench": "^6.1.3",
+    "tsx": "^4.23.12"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
