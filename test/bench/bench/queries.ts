@@ -1,5 +1,7 @@
-var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, 'name', { value, configurable: true });
+import type postgres from '@internal/postgres/runtime';
+
+type Sql = ReturnType<typeof postgres>['sql'];
+
 const customerColumns = [
   'id',
   'company_name',
@@ -53,7 +55,7 @@ const productColumns = [
   'discontinued',
   'supplier_id',
 ];
-function benchmarkPlans(sql) {
+export function benchmarkPlans(sql: Sql) {
   const customers = sql.public.customers
     .select(...customerColumns)
     .orderBy('id')
@@ -264,6 +266,3 @@ function benchmarkPlans(sql) {
     orderWithDetailsAndProductsLarge: orderWithDetailsAndProducts,
   };
 }
-__name(benchmarkPlans, 'benchmarkPlans');
-
-export { benchmarkPlans };

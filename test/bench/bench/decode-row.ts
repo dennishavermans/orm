@@ -1,10 +1,8 @@
-var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, 'name', { value, configurable: true });
-
 import 'temporal-polyfill/global';
+import { pathToFileURL } from 'node:url';
 import postgres from '@internal/postgres/runtime';
 import { buildDecodeContext, decodeRow } from '@internal/sql-runtime/test/utils';
-import { Bench } from 'tinybench';
+import { Bench, type TaskResult } from 'tinybench';
 import contractJson from '../fixtures/northwind.json' with { type: 'json' };
 import rowsJson from '../fixtures/rows.json' with { type: 'json' };
 import { benchmarkPlans } from './queries';
@@ -25,50 +23,95 @@ const REQUEST_MIX = {
   employees: 1e3,
 };
 const MIX_RESPONSES = 200;
+const rowCtx = {};
+
+type Row = Record<string, unknown>;
+type DecodeContext = Parameters<typeof decodeRow>[1];
+
+export interface BenchmarkCase {
+  readonly name: string;
+  readonly rows: readonly Row[];
+  readonly decodeCtx: DecodeContext;
+}
+
+export function createWeightedWorkload<T extends { readonly name: string }>(
+  cases: readonly T[],
+  requestMix: Readonly<Record<string, number>>,
+  responseCount: number,
+): T[] {
+  const caseByName = new Map(cases.map((entry) => [entry.name, entry]));
+  const mixTotal = Object.values(requestMix).reduce((sum, weight) => sum + weight, 0);
+  let cumulativeWeight = 0;
+  let allocatedResponses = 0;
+
+  return Object.entries(requestMix).flatMap(([name, weight]) => {
+    const entry = caseByName.get(name);
+    if (!entry) {
+      throw new Error(`Request mix names unknown query "${name}"`);
+    }
+
+    cumulativeWeight += weight;
+    const cumulativeResponses = Math.round((cumulativeWeight / mixTotal) * responseCount);
+    const entryResponses = cumulativeResponses - allocatedResponses;
+    allocatedResponses = cumulativeResponses;
+    return Array.from({ length: entryResponses }, () => entry);
+  });
+}
+
+function createBenchmarkCases(
+  plans: ReturnType<typeof benchmarkPlans>,
+  fixtures: Readonly<Record<string, readonly Row[]>>,
+  contractCodecs: Parameters<typeof buildDecodeContext>[1],
+): BenchmarkCase[] {
+  return Object.entries(plans).map(([name, plan]) => {
+    const rows = fixtures[name];
+    if (!rows) {
+      throw new Error(`No fixture rows for query "${name}"`);
+    }
+    return { name, rows, decodeCtx: buildDecodeContext(plan.ast, contractCodecs) };
+  });
+}
+
 const db = postgres({ contractJson, url: 'postgres://bench@127.0.0.1:5432/bench' });
 const plans = benchmarkPlans(db.sql);
-const fixtures = rowsJson;
-const rowCtx = {};
-const cases = Object.entries(plans).map(([name, plan]) => {
-  const rows = fixtures[name];
-  if (!rows) {
-    throw new Error(`No fixture rows for query "${name}"`);
-  }
-  return { name, rows, decodeCtx: buildDecodeContext(plan.ast, db.context.contractCodecs) };
-});
-const caseByName = new Map(cases.map((entry) => [entry.name, entry]));
-const mixTotal = Object.values(REQUEST_MIX).reduce((sum, weight) => sum + weight, 0);
-const mixedWorkload = Object.entries(REQUEST_MIX).flatMap(([name, weight]) => {
-  const entry = caseByName.get(name);
-  if (!entry) {
-    throw new Error(`Request mix names unknown query "${name}"`);
-  }
-  return Array.from({ length: Math.round((weight / mixTotal) * MIX_RESPONSES) }, () => entry);
-});
-async function decodeResultSet(rows, decodeCtx) {
-  const decoded = [];
+export const benchmarkCases = createBenchmarkCases(plans, rowsJson, db.context.contractCodecs);
+const caseByName = new Map(benchmarkCases.map((entry) => [entry.name, entry]));
+const mixedWorkload = createWeightedWorkload(benchmarkCases, REQUEST_MIX, MIX_RESPONSES);
+
+export async function decodeResultSet(
+  rows: readonly Row[],
+  decodeCtx: DecodeContext,
+): Promise<Row[]> {
+  const decoded: Row[] = [];
   for (const row of rows) {
     decoded.push(await decodeRow(row, decodeCtx, rowCtx));
   }
   return decoded;
 }
-__name(decodeResultSet, 'decodeResultSet');
-function columnCount(rows) {
+
+function columnCount(rows: readonly Row[]): number {
   return Object.keys(rows[0] ?? {}).length;
 }
-__name(columnCount, 'columnCount');
-function format(value, digits) {
+
+function format(value: number, digits: number): string {
   return value.toLocaleString('en-US', {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
 }
-__name(format, 'format');
-async function verifyFixtures() {
-  for (const entry of cases) {
+
+function resultWithStatistics(result: TaskResult | undefined) {
+  if (result?.state === 'completed' || result?.state === 'aborted-with-statistics') {
+    return result;
+  }
+  return undefined;
+}
+
+async function verifyFixtures(): Promise<void> {
+  for (const entry of benchmarkCases) {
     const decoded = await decodeResultSet(entry.rows, entry.decodeCtx);
     const first = decoded[0];
-    if (first === void 0) {
+    if (first === undefined) {
       throw new Error(`Query "${entry.name}" decoded no rows`);
     }
     if (Object.keys(first).length !== columnCount(entry.rows)) {
@@ -76,11 +119,11 @@ async function verifyFixtures() {
     }
   }
 }
-__name(verifyFixtures, 'verifyFixtures');
-async function main() {
+
+async function main(): Promise<void> {
   await verifyFixtures();
-  const rowBench = new Bench({ name: 'decodeRow \u2014 single row', time: 700, warmupTime: 200 });
-  for (const entry of cases) {
+  const rowBench = new Bench({ name: 'decodeRow — single row', time: 700, warmupTime: 200 });
+  for (const entry of benchmarkCases) {
     const row = entry.rows[0];
     if (!row) continue;
     rowBench.add(entry.name, async () => {
@@ -88,17 +131,17 @@ async function main() {
     });
   }
   const resultSetBench = new Bench({
-    name: 'decodeRow \u2014 whole result set',
+    name: 'decodeRow — whole result set',
     time: 700,
     warmupTime: 200,
   });
-  for (const entry of cases) {
+  for (const entry of benchmarkCases) {
     resultSetBench.add(entry.name, async () => {
       await decodeResultSet(entry.rows, entry.decodeCtx);
     });
   }
   const mixRows = mixedWorkload.reduce((sum, entry) => sum + entry.rows.length, 0);
-  const mixBench = new Bench({ name: 'decodeRow \u2014 northwind request mix', time: 1500 });
+  const mixBench = new Bench({ name: 'decodeRow — northwind request mix', time: 1500 });
   mixBench.add(`${mixedWorkload.length} responses / ${mixRows} rows`, async () => {
     for (const entry of mixedWorkload) {
       await decodeResultSet(entry.rows, entry.decodeCtx);
@@ -107,44 +150,43 @@ async function main() {
   await rowBench.run();
   await resultSetBench.run();
   await mixBench.run();
-  console.log(`
-${rowBench.name}`);
+  console.log(`\n${rowBench.name}`);
   console.table(
     rowBench.tasks.map((task) => {
       const entry = caseByName.get(task.name);
-      const latency = task.result?.latency;
+      const result = resultWithStatistics(task.result);
+      const latency = result?.latency;
       return {
         query: task.name,
         cols: entry ? columnCount(entry.rows) : 0,
         'ns/row': latency ? format(latency.mean * 1e6, 0) : 'n/a',
-        'rows/sec': task.result ? format(task.result.throughput.mean, 0) : 'n/a',
+        'rows/sec': result ? format(result.throughput.mean, 0) : 'n/a',
         'rme %': latency ? format(latency.rme, 2) : 'n/a',
       };
     }),
   );
-  console.log(`
-${resultSetBench.name}`);
+  console.log(`\n${resultSetBench.name}`);
   console.table(
     resultSetBench.tasks.map((task) => {
       const entry = caseByName.get(task.name);
       const rows = entry ? entry.rows.length : 0;
-      const latency = task.result?.latency;
+      const result = resultWithStatistics(task.result);
+      const latency = result?.latency;
       return {
         query: task.name,
         rows,
         cols: entry ? columnCount(entry.rows) : 0,
-        '\xB5s/response': latency ? format(latency.mean * 1e3, 1) : 'n/a',
+        'µs/response': latency ? format(latency.mean * 1e3, 1) : 'n/a',
         'ns/row': latency && rows ? format((latency.mean * 1e6) / rows, 0) : 'n/a',
-        'responses/sec': task.result ? format(task.result.throughput.mean, 0) : 'n/a',
+        'responses/sec': result ? format(result.throughput.mean, 0) : 'n/a',
         'rme %': latency ? format(latency.rme, 2) : 'n/a',
       };
     }),
   );
-  console.log(`
-${mixBench.name}`);
+  console.log(`\n${mixBench.name}`);
   console.table(
     mixBench.tasks.map((task) => {
-      const latency = task.result?.latency;
+      const latency = resultWithStatistics(task.result)?.latency;
       return {
         workload: task.name,
         'ms/batch': latency ? format(latency.mean, 2) : 'n/a',
@@ -155,5 +197,7 @@ ${mixBench.name}`);
     }),
   );
 }
-__name(main, 'main');
-await main();
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  await main();
+}
