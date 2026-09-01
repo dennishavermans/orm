@@ -373,6 +373,45 @@ describe('decodeRow — async, concurrent per-cell dispatch', () => {
     expect(result).toEqual({ a: 'A:A-DEC', b: 'B:B-DEC', n: 42 });
   });
 
+  it('dispatches later cells after an earlier codec throws synchronously', async () => {
+    const cause = new Error('sync failure');
+    let laterCalls = 0;
+    const registry = [
+      defineTestCodec({
+        typeId: 'test/sync-throw@1',
+        targetTypes: ['text'],
+        encode: (value: string) => value,
+        decode: () => {
+          throw cause;
+        },
+      }),
+      defineTestCodec({
+        typeId: 'test/later@1',
+        targetTypes: ['text'],
+        encode: (value: string) => value,
+        decode: (wire: string) => {
+          laterCalls++;
+          return wire;
+        },
+      }),
+    ];
+    const plan = buildAstPlan({
+      projections: [
+        { alias: 'first', codecId: 'test/sync-throw@1' },
+        { alias: 'later', codecId: 'test/later@1' },
+      ],
+    });
+
+    await expect(
+      decodeRow(
+        { first: 'first', later: 'later' },
+        buildDecodeContext(plan.ast, buildTestContractCodecs(registry)),
+        {},
+      ),
+    ).rejects.toMatchObject({ code: 'RUNTIME.DECODE_FAILED', cause });
+    expect(laterCalls).toBe(1);
+  });
+
   it('always awaits codec.decode and yields plain values (no Promise leaks)', async () => {
     const registry = [
       defineTestCodec({
@@ -488,6 +527,46 @@ describe('decodeRow — async, concurrent per-cell dispatch', () => {
     });
   });
 
+  it('decodes mixed codec and passthrough fields without an abort signal', async () => {
+    const registry = [
+      defineTestCodec({
+        typeId: 'test/uppercase@1',
+        targetTypes: ['text'],
+        encode: (value: string) => value,
+        decode: async (wire: string) => wire.toUpperCase(),
+      }),
+    ];
+    const plan = buildAstPlan({
+      projections: [
+        { alias: 'before' },
+        { alias: 'name', codecId: 'test/uppercase@1' },
+        { alias: 'nullable', codecId: 'test/uppercase@1' },
+        { alias: 'after' },
+      ],
+    });
+
+    const result = await decodeRow(
+      { before: 1, name: 'alice', nullable: null, after: 3 },
+      buildDecodeContext(plan.ast, buildTestContractCodecs(registry)),
+      {},
+    );
+
+    expect(result).toEqual({ before: 1, name: 'ALICE', nullable: null, after: 3 });
+  });
+
+  it('treats projection aliases as data when compiling a row shape', async () => {
+    const alias = 'field"];\nthrow new Error("injected") //';
+    const plan = buildAstPlan({ projections: [{ alias }] });
+
+    const result = await decodeRow(
+      { [alias]: 'safe' },
+      buildDecodeContext(plan.ast, buildTestContractCodecs([])),
+      {},
+    );
+
+    expect(result).toEqual({ [alias]: 'safe' });
+  });
+
   it('passes wire values through for raw plans (no AST, no codec decoding)', async () => {
     const registry = [
       defineTestCodec({
@@ -525,6 +604,19 @@ describe('decodeRow — async, concurrent per-cell dispatch', () => {
         presentKeys: ['id'],
       },
     });
+  });
+
+  it('preserves an own undefined value as distinct from a missing projection alias', async () => {
+    const plan = buildAstPlan({ projections: [{ alias: 'value' }] });
+
+    const result = await decodeRow(
+      { value: undefined },
+      buildDecodeContext(plan.ast, buildTestContractCodecs([])),
+      {},
+    );
+
+    expect(Object.hasOwn(result, 'value')).toBe(true);
+    expect(result['value']).toBeUndefined();
   });
 
   it('preserves wire null for AST-backed plans (distinct from missing alias)', async () => {

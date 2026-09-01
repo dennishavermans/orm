@@ -11,12 +11,36 @@ import type {
   RawQueryAst,
   SqlCodecCallContext,
 } from '@internal/sql-relational-core/ast';
+import { blindCast } from '@internal/utils/casts';
 import { isStructuredError } from '@internal/utils/structured-error';
 
 type ColumnRef = { table: string; column: string };
+type IncludeAggregateValue = object | string | number | boolean | null;
+
+interface DecodeFieldPlan {
+  readonly alias: string;
+  readonly codec: Codec | undefined;
+  readonly ref: ColumnRef | undefined;
+  readonly callColumn: SqlCodecCallContext['column'];
+  readonly include: boolean;
+  readonly many: boolean;
+}
+
+interface CompiledRowDecoder {
+  readonly createTasks: (
+    row: Record<string, unknown>,
+    rowCtx: SqlCodecCallContext,
+  ) => Promise<unknown>[];
+  readonly createResult: (
+    row: Record<string, unknown>,
+    settled: unknown[],
+  ) => Record<string, unknown>;
+}
 
 export interface DecodeContext {
   readonly aliases: ReadonlyArray<string> | undefined;
+  readonly fields: ReadonlyArray<DecodeFieldPlan> | undefined;
+  readonly compiled?: CompiledRowDecoder;
   readonly codecs: ReadonlyMap<string, Codec>;
   readonly columnRefs: ReadonlyMap<string, ColumnRef>;
   readonly includeAliases: ReadonlySet<string>;
@@ -33,13 +57,26 @@ export interface DecodeContext {
 const WIRE_PREVIEW_LIMIT = 100;
 const EMPTY_INCLUDE_ALIASES: ReadonlySet<string> = new Set<string>();
 
-function projectionListFromAst(
-  ast: Exclude<AnyQueryAst, RawQueryAst>,
-): ReadonlyArray<ProjectionItem> | undefined {
-  if (ast.kind === 'select') {
-    return ast.projection;
+function projectionListFromAst(ast: unknown): ReadonlyArray<ProjectionItem> | undefined {
+  if (typeof ast !== 'object' || ast === null) {
+    return undefined;
   }
-  return ast.returning;
+  if ('kind' in ast && ast.kind === 'select') {
+    if (!('projection' in ast) || !Array.isArray(ast.projection)) {
+      return undefined;
+    }
+    return blindCast<
+      ReadonlyArray<ProjectionItem>,
+      'Array.isArray validates the projection list and the query AST validator guarantees its items'
+    >(ast.projection);
+  }
+  if (!('returning' in ast) || ast.returning === undefined || !Array.isArray(ast.returning)) {
+    return undefined;
+  }
+  return blindCast<
+    ReadonlyArray<ProjectionItem>,
+    'Array.isArray validates the returning list and the query AST validator guarantees its items'
+  >(ast.returning);
 }
 
 function resolveProjectionCodec(
@@ -57,6 +94,7 @@ const EMPTY_MANY_ALIASES: ReadonlySet<string> = new Set<string>();
 function undecodedContext(): DecodeContext {
   return {
     aliases: undefined,
+    fields: undefined,
     codecs: new Map(),
     columnRefs: new Map(),
     includeAliases: EMPTY_INCLUDE_ALIASES,
@@ -83,16 +121,35 @@ function rawQueryDecodeContext(
   }
 
   const aliases: string[] = [];
+  const fields: DecodeFieldPlan[] = [];
   const codecs = new Map<string, Codec>();
   for (const [name, column] of Object.entries(ast.result.columns)) {
     aliases.push(name);
-    if (contractCodecs) {
-      codecs.set(name, contractCodecs.forCodecRef({ codecId: column.codecId }));
+    if (typeof column !== 'object' || column === null || !('codecId' in column)) {
+      throw new TypeError(`Raw query column "${name}" has no codecId`);
     }
+    const codecId = column.codecId;
+    if (typeof codecId !== 'string') {
+      throw new TypeError(`Raw query column "${name}" has a non-string codecId`);
+    }
+    const codec = contractCodecs?.forCodecRef({ codecId });
+    if (codec) {
+      codecs.set(name, codec);
+    }
+    fields.push({
+      alias: name,
+      codec,
+      ref: undefined,
+      callColumn: undefined,
+      include: false,
+      many: false,
+    });
   }
 
   return {
     aliases,
+    fields,
+    compiled: compileRowDecoder(fields),
     codecs,
     columnRefs: new Map(),
     includeAliases: EMPTY_INCLUDE_ALIASES,
@@ -115,6 +172,7 @@ export function buildDecodeContext(
   }
 
   const aliases: string[] = [];
+  const fields: DecodeFieldPlan[] = [];
   const codecs = new Map<string, Codec>();
   const columnRefs = new Map<string, ColumnRef>();
   const includeAliases = new Set<string>();
@@ -128,21 +186,34 @@ export function buildDecodeContext(
       codecs.set(item.alias, codec);
     }
 
-    if (item.codec?.many) {
+    const many = item.codec?.many === true;
+    if (many) {
       manyAliases.add(item.alias);
     }
 
+    let ref: ColumnRef | undefined;
+    let include = false;
     if (item.expr.kind === 'column-ref') {
-      columnRefs.set(item.alias, {
-        table: item.expr.table,
-        column: item.expr.column,
-      });
+      ref = { table: item.expr.table, column: item.expr.column };
+      columnRefs.set(item.alias, ref);
     } else if (item.expr.kind === 'subquery' || item.expr.kind === 'json-array-agg') {
+      include = true;
       includeAliases.add(item.alias);
     }
+    const callColumn = ref ? { table: ref.table, name: ref.column } : undefined;
+    fields.push({ alias: item.alias, codec, ref, callColumn, include, many });
   }
 
-  return { aliases, codecs, columnRefs, includeAliases, manyAliases, aliasSource: 'projection' };
+  return {
+    aliases,
+    fields,
+    compiled: compileRowDecoder(fields),
+    codecs,
+    columnRefs,
+    includeAliases,
+    manyAliases,
+    aliasSource: 'projection',
+  };
 }
 
 function previewWireValue(wireValue: unknown): string {
@@ -190,7 +261,7 @@ function wrapIncludeAggregateFailure(error: unknown, alias: string, wireValue: u
   throw wrapped;
 }
 
-function decodeIncludeAggregate(alias: string, wireValue: unknown): unknown {
+function decodeIncludeAggregate(alias: string, wireValue: unknown): IncludeAggregateValue {
   if (wireValue === null || wireValue === undefined) {
     return [];
   }
@@ -222,73 +293,110 @@ function decodeIncludeAggregate(alias: string, wireValue: unknown): unknown {
  *
  * For `many`-flagged aliases the driver has already parsed the wire form into a JS array; this function maps the element codec over that array element-by-element, passing `null` elements through unchanged. Element-level failures surface through the existing `RUNTIME.DECODE_FAILED` envelope with the column/codec context from the parent cell.
  */
-async function decodeField(
-  alias: string,
+async function decodeManyField(
+  field: DecodeFieldPlan,
   wireValue: unknown,
-  decodeCtx: DecodeContext,
+  codec: Codec,
+  cellCtx: SqlCodecCallContext,
+): Promise<unknown> {
+  const { alias, ref } = field;
+  if (!Array.isArray(wireValue)) {
+    wrapDecodeFailure(
+      new TypeError(
+        `expected an array from the driver for many-typed column, got ${typeof wireValue}`,
+      ),
+      alias,
+      ref,
+      codec,
+      wireValue,
+    );
+  }
+  const decoded: unknown[] = [];
+  for (const elem of wireValue) {
+    if (elem === null || elem === undefined) {
+      decoded.push(null);
+      continue;
+    }
+    try {
+      decoded.push(await codec.decode(elem, cellCtx));
+    } catch (error) {
+      if (isStructuredError(error)) throw error;
+      wrapDecodeFailure(error, alias, ref, codec, elem);
+    }
+  }
+  return decoded;
+}
+
+function decodeField(
+  field: DecodeFieldPlan,
+  wireValue: unknown,
   rowCtx: SqlCodecCallContext,
 ): Promise<unknown> {
   if (wireValue === null) {
-    return null;
+    return Promise.resolve(null);
   }
 
-  const codec = decodeCtx.codecs.get(alias);
+  const { alias, codec, ref, callColumn } = field;
   if (!codec) {
-    return wireValue;
+    return Promise.resolve(wireValue);
   }
 
-  const ref = decodeCtx.columnRefs.get(alias);
-
+  const signal = rowCtx.signal;
   let cellCtx: SqlCodecCallContext;
-  if (ref) {
-    cellCtx = { ...rowCtx, column: { table: ref.table, name: ref.column } };
+  if (callColumn) {
+    cellCtx = signal === undefined ? { column: callColumn } : { signal, column: callColumn };
   } else {
-    const { column: _drop, ...rowCtxWithoutColumn } = rowCtx;
-    cellCtx = rowCtxWithoutColumn;
+    cellCtx = signal === undefined ? {} : { signal };
   }
 
-  if (decodeCtx.manyAliases.has(alias)) {
-    if (!Array.isArray(wireValue)) {
-      wrapDecodeFailure(
-        new TypeError(
-          `expected an array from the driver for many-typed column, got ${typeof wireValue}`,
-        ),
-        alias,
-        ref,
-        codec,
-        wireValue,
-      );
-    }
-    const decoded: unknown[] = [];
-    for (const elem of wireValue) {
-      if (elem === null || elem === undefined) {
-        decoded.push(null);
-        continue;
-      }
-      try {
-        decoded.push(await codec.decode(elem, cellCtx));
-      } catch (error) {
-        if (isStructuredError(error)) throw error;
-        wrapDecodeFailure(error, alias, ref, codec, elem);
-      }
-    }
-    return decoded;
+  if (field.many) {
+    return decodeManyField(field, wireValue, codec, cellCtx);
   }
 
-  try {
-    return await codec.decode(wireValue, cellCtx);
-  } catch (error) {
-    // Any structured envelope (dotted `code` per `isStructuredError`) is
-    // stable by construction — let it pass through unchanged. This covers
-    // every `runtimeError`-built envelope and plain `structuredError`
-    // envelopes from extension codecs (e.g. a codec-authored
-    // `RUNTIME.DECODE_FAILED` — no double wrap). Symmetric with the
-    // encode-side guard.
+  const wrapFailure = (error: unknown): never => {
     if (isStructuredError(error)) {
       throw error;
     }
     wrapDecodeFailure(error, alias, ref, codec, wireValue);
+  };
+
+  try {
+    const decoded = codec.decode(wireValue, cellCtx);
+    return decoded instanceof Promise
+      ? decoded.catch(wrapFailure)
+      : Promise.resolve(decoded).catch(wrapFailure);
+  } catch (error) {
+    return Promise.reject(error).catch(wrapFailure);
   }
+}
+
+function compileRowDecoder(fields: ReadonlyArray<DecodeFieldPlan>): CompiledRowDecoder {
+  const taskExpressions = fields.map((field, index) =>
+    field.include
+      ? 'Promise.resolve(undefined)'
+      : `decodeField(fields[${index}], row[${JSON.stringify(field.alias)}], rowCtx)`,
+  );
+  const resultProperties = fields.map((field, index) => {
+    const alias = JSON.stringify(field.alias);
+    const value = field.include
+      ? `decodeIncludeAggregate(${alias}, row[${alias}])`
+      : `settled[${index}]`;
+    return `[${alias}]: ${value}`;
+  });
+  const create = new Function(
+    'decodeField',
+    'decodeIncludeAggregate',
+    'fields',
+    `"use strict";
+return {
+  createTasks(row, rowCtx) { return [${taskExpressions.join(',')}]; },
+  createResult(row, settled) { return {${resultProperties.join(',')}}; }
+};`,
+  );
+  return blindCast<
+    CompiledRowDecoder,
+    'new Function is generated exclusively from JSON-escaped aliases and numeric field indices'
+  >(create(decodeField, decodeIncludeAggregate, fields));
 }
 
 /**
@@ -312,7 +420,7 @@ export async function decodeRow(
 
   if (decodeCtx.aliases !== undefined) {
     for (const alias of decodeCtx.aliases) {
-      if (!Object.hasOwn(row, alias)) {
+      if (row[alias] === undefined && !Object.hasOwn(row, alias)) {
         throw decodeCtx.aliasSource === 'row-spec'
           ? runtimeError(
               'RUNTIME.RAW_ROW_COLUMN_MISSING',
@@ -332,31 +440,50 @@ export async function decodeRow(
     }
   }
 
-  const tasks: Promise<unknown>[] = [];
+  const compiled = decodeCtx.compiled;
+  let tasks: Promise<unknown>[];
   const includeIndices: { index: number; alias: string; value: unknown }[] = [];
 
-  for (let i = 0; i < aliases.length; i++) {
-    const alias = aliases[i] as string;
-    const wireValue = row[alias];
-
-    if (decodeCtx.includeAliases.has(alias)) {
-      includeIndices.push({ index: i, alias, value: wireValue });
-      tasks.push(Promise.resolve(undefined));
-      continue;
+  if (compiled) {
+    tasks = compiled.createTasks(row, rowCtx);
+  } else {
+    tasks = new Array<Promise<unknown>>(aliases.length);
+    const fields = decodeCtx.fields;
+    if (fields === undefined) {
+      let index = 0;
+      for (const alias of aliases) {
+        tasks[index++] = Promise.resolve(row[alias]);
+      }
+    } else {
+      let index = 0;
+      for (const field of fields) {
+        const wireValue = row[field.alias];
+        if (field.include) {
+          includeIndices.push({ index, alias: field.alias, value: wireValue });
+          tasks[index++] = Promise.resolve(undefined);
+          continue;
+        }
+        tasks[index++] = decodeField(field, wireValue, rowCtx);
+      }
     }
-
-    tasks.push(decodeField(alias, wireValue, decodeCtx, rowCtx));
   }
 
-  const settled = await raceAgainstAbort(Promise.all(tasks), signal, 'decode');
+  const allTasks = Promise.all(tasks);
+  const settled =
+    signal === undefined ? await allTasks : await raceAgainstAbort(allTasks, signal, 'decode');
+
+  if (compiled) {
+    return compiled.createResult(row, settled);
+  }
 
   for (const entry of includeIndices) {
     settled[entry.index] = decodeIncludeAggregate(entry.alias, entry.value);
   }
 
   const decoded: Record<string, unknown> = {};
-  for (let i = 0; i < aliases.length; i++) {
-    decoded[aliases[i] as string] = settled[i];
+  let index = 0;
+  for (const alias of aliases) {
+    decoded[alias] = settled[index++];
   }
   return decoded;
 }

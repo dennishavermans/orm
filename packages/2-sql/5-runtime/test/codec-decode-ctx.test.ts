@@ -117,6 +117,32 @@ describe('decodeRow — SqlCodecCallContext threading', () => {
     ]);
   });
 
+  it('populates ctx.column from a default empty row context', async () => {
+    let observed: SqlCodecCallContext | undefined;
+    const registry = [
+      defineTestCodec({
+        typeId: 'test/observe-empty-ctx@1',
+        targetTypes: ['text'],
+        encode: (value: string) => value,
+        decode: (wire: string, ctx?: SqlCodecCallContext) => {
+          observed = ctx;
+          return wire;
+        },
+      }),
+    ];
+    const plan = buildPlan([
+      columnProjection('email', 'users', 'email', 'test/observe-empty-ctx@1'),
+    ]);
+
+    await decodeRow(
+      { email: 'user@example.com' },
+      buildDecodeContext(plan.ast, buildTestContractCodecs(registry)),
+      {},
+    );
+
+    expect(observed).toEqual({ column: { table: 'users', name: 'email' } });
+  });
+
   it('populates ctx.column when the projection points at a different table.column than the alias', async () => {
     let observed: SqlCodecCallContext | undefined;
     const registry = [
