@@ -85,13 +85,15 @@ function decodeTemporalText<T>(
 
 function encodeTemporalValue(
   identity: TemporalCodecIdentity,
-  value: { readonly calendarId?: string; toString: () => string },
+  value: {
+    readonly calendarId?: string;
+    readonly [Symbol.toStringTag]?: string;
+    toString: () => string;
+  },
 ): string {
   requireTemporal(identity.codecId, 'encode');
   const tag: unknown =
-    typeof value === 'object' && value !== null
-      ? Reflect.get(value, Symbol.toStringTag)
-      : undefined;
+    typeof value === 'object' && value !== null ? value[Symbol.toStringTag] : undefined;
   if (tag !== identity.temporalTag) {
     throw errorTemporalWrongType(
       identity.codecId,
@@ -142,8 +144,46 @@ const TIME_TEMPORAL: TemporalCodecIdentity = {
 
 const unadapted = (text: string): string => text;
 
+function parsePlainDate(text: string): Temporal.PlainDate {
+  if (text.length === 10 && text.charCodeAt(4) === 45 && text.charCodeAt(7) === 45) {
+    const year0 = text.charCodeAt(0) - 48;
+    const year1 = text.charCodeAt(1) - 48;
+    const year2 = text.charCodeAt(2) - 48;
+    const year3 = text.charCodeAt(3) - 48;
+    const month0 = text.charCodeAt(5) - 48;
+    const month1 = text.charCodeAt(6) - 48;
+    const day0 = text.charCodeAt(8) - 48;
+    const day1 = text.charCodeAt(9) - 48;
+    if (
+      year0 >= 0 &&
+      year0 <= 9 &&
+      year1 >= 0 &&
+      year1 <= 9 &&
+      year2 >= 0 &&
+      year2 <= 9 &&
+      year3 >= 0 &&
+      year3 <= 9 &&
+      month0 >= 0 &&
+      month0 <= 9 &&
+      month1 >= 0 &&
+      month1 <= 9 &&
+      day0 >= 0 &&
+      day0 <= 9 &&
+      day1 >= 0 &&
+      day1 <= 9
+    ) {
+      return new Temporal.PlainDate(
+        year0 * 1000 + year1 * 100 + year2 * 10 + year3,
+        month0 * 10 + month1,
+        day0 * 10 + day1,
+      );
+    }
+  }
+  return Temporal.PlainDate.from(text);
+}
+
 export const pgDateTemporalDecode = (wire: string): Temporal.PlainDate =>
-  decodeTemporalText(DATE_TEMPORAL, wire, (t) => Temporal.PlainDate.from(t), adaptPostgresEra);
+  decodeTemporalText(DATE_TEMPORAL, wire, parsePlainDate, adaptPostgresEra);
 
 export const pgDateTemporalEncode = (value: Temporal.PlainDate): string =>
   encodeTemporalValue(DATE_TEMPORAL, value);
