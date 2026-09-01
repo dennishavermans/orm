@@ -145,6 +145,7 @@ const TIME_TEMPORAL: TemporalCodecIdentity = {
 const unadapted = (text: string): string => text;
 
 function parsePlainDate(text: string): Temporal.PlainDate {
+  // Validate and construct canonical YYYY-MM-DD directly to avoid parser overhead; era-adapted dates fall back to Temporal.
   if (text.length === 10 && text.charCodeAt(4) === 45 && text.charCodeAt(7) === 45) {
     const year0 = text.charCodeAt(0) - 48;
     const year1 = text.charCodeAt(1) - 48;
