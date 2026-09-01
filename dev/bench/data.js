@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788251960704,
+  "lastUpdate": 1788254928323,
   "repoUrl": "https://github.com/prisma/orm",
   "entries": {
     "Benchmark.js Benchmark": [
@@ -451885,6 +451885,401 @@ window.BENCHMARK_DATA = {
             "range": "±1.16%",
             "unit": "ops/sec",
             "extra": "85 samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "robot@aqrln.net",
+            "name": "clanky.exe",
+            "username": "tensordreams"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9cb9c089b0c29b2fea06c195db2266bc98df5143",
+          "message": "test(e2e): run prisma init from the local tarball in the corepack test (#30183)\n\n## Summary\n\nThe `prisma-init-corepack` e2e test fails on every CI run (for example,\n[this shard on\n#30180](https://github.com/prisma/orm/actions/runs/33404519109/job/99528741843),\nand the same shard on the `v7` tip's own CI run from 2026-08-27, before\nthat PR existed).\n\nCause: the test runs `pnpm dlx prisma init`. `dlx` ignores the locally\ninstalled package and fetches `prisma@latest` from the registry — and\n`latest` is Prisma 8 (`8.0.0-rc.12` today; Prisma 7 moved to the `prev`\ndist-tag). The v8 CLI rejects the fixture's Prisma 7 `prisma.config.ts`\nwith `CLI.CONFIG_MISSING_MARKER`. The test was green on 2026-08-17 and\nred by 2026-08-27, matching the dist-tag transition, and can never be\ngreen again in this form.\n\nFix: run `pnpm exec prisma init` instead. The fixture already installs\nthe `prisma` tarball under test as a devDependency, so `exec` makes the\ntest hermetic and exercises the v7 CLI this branch builds. This matches\nthe sibling `prisma-init-bun` test, which also runs the locally\ninstalled CLI.\n\nThe corepack regression coverage this test exists for (#28504) is\nunchanged: `prisma init` still executes in a `corepack enable`d\ncontainer through a corepack-managed pnpm (`packageManager:\npnpm@10.15.1`).\n\n## Testing performed\n\n- Read the failing job log: the error envelope comes from the v8 CLI\n(`CLI.CONFIG_MISSING_MARKER`, \"most likely a Prisma 7 config\"),\nimmediately after `dlx` downloads `prisma` from the registry.\n- Verified registry state: `prisma` dist-tags are `latest: 8.0.0-rc.12`,\n`prev: 7.10.0`.\n- The e2e shard on this PR's CI is the verification that the test passes\nagain.\n\n## Related PRs\n\n- prisma/orm#30180 (v7 `github.repository` guards) — its failing e2e\ncheck is this same pre-existing test failure, plus a `pnpm audit` Lint\nfailure that is advisory-driven and unrelated.\n\n\n<!-- This is an auto-generated comment: release notes by coderabbit.ai\n-->\n## Summary by CodeRabbit\n\n* **Tests**\n* Updated the Prisma initialization end-to-end test to run the locally\ninstalled Prisma package.\n* Improved test reliability by avoiding unexpected package retrieval\nduring setup.\n<!-- end of auto-generated comment: release notes by coderabbit.ai -->\n\nSigned-off-by: Oleksii Orlenko <robot@aqrln.net>",
+          "timestamp": "2026-09-01T11:18:32+02:00",
+          "tree_id": "5d7c928fe2978e84918bdad7cedc9cb4b2aab381",
+          "url": "https://github.com/prisma/orm/commit/9cb9c089b0c29b2fea06c195db2266bc98df5143"
+        },
+        "date": 1788254887701,
+        "tool": "benchmarkjs",
+        "benches": [
+          {
+            "name": "interpreter: simple select",
+            "value": 121246,
+            "range": "±0.60%",
+            "unit": "ops/sec",
+            "extra": "86 samples"
+          },
+          {
+            "name": "interpreter: findUnique",
+            "value": 102321,
+            "range": "±0.99%",
+            "unit": "ops/sec",
+            "extra": "84 samples"
+          },
+          {
+            "name": "interpreter: join (1:N)",
+            "value": 57967,
+            "range": "±0.84%",
+            "unit": "ops/sec",
+            "extra": "85 samples"
+          },
+          {
+            "name": "interpreter: sequence",
+            "value": 62522,
+            "range": "±1.23%",
+            "unit": "ops/sec",
+            "extra": "86 samples"
+          },
+          {
+            "name": "interpreter: deep nested join",
+            "value": 20697,
+            "range": "±0.53%",
+            "unit": "ops/sec",
+            "extra": "86 samples"
+          },
+          {
+            "name": "serializer: 10 rows x 3 cols",
+            "value": 1556468,
+            "range": "±0.49%",
+            "unit": "ops/sec",
+            "extra": "89 samples"
+          },
+          {
+            "name": "serializer: 50 rows x 8 cols",
+            "value": 138252,
+            "range": "±0.33%",
+            "unit": "ops/sec",
+            "extra": "93 samples"
+          },
+          {
+            "name": "serializer: 100 rows x 8 cols",
+            "value": 69140,
+            "range": "±0.26%",
+            "unit": "ops/sec",
+            "extra": "97 samples"
+          },
+          {
+            "name": "getBinaryTargetForCurrentPlatform",
+            "value": 907,
+            "range": "±0.90%",
+            "unit": "ops/sec",
+            "extra": "84 samples"
+          },
+          {
+            "name": "client generation 100 models with relations",
+            "value": 0.48,
+            "range": "±12.98%",
+            "unit": "ops/sec",
+            "extra": "7 samples"
+          },
+          {
+            "name": "client generation ~50 Models",
+            "value": 2.37,
+            "range": "±17.07%",
+            "unit": "ops/sec",
+            "extra": "17 samples"
+          },
+          {
+            "name": "typescript compilation ~50 Models",
+            "value": 0.93,
+            "range": "±16.72%",
+            "unit": "ops/sec",
+            "extra": "10 samples"
+          },
+          {
+            "name": "@prisma/client size",
+            "value": 70.99891471862793,
+            "range": "±0.00%",
+            "unit": "MB",
+            "extra": "1 samples"
+          },
+          {
+            "name": ".prisma/client size",
+            "value": 10.426462173461914,
+            "range": "±0.00%",
+            "unit": "MB",
+            "extra": "1 samples"
+          },
+          {
+            "name": ".prisma/client/index.d.ts size",
+            "value": 2.372147560119629,
+            "range": "±0.00%",
+            "unit": "MB",
+            "extra": "1 samples"
+          },
+          {
+            "name": ".prisma/client/index.js size",
+            "value": 0.17815494537353516,
+            "range": "±0.00%",
+            "unit": "MB",
+            "extra": "1 samples"
+          },
+          {
+            "name": "dotPlusAtPrismaClientFolder.zip size",
+            "value": 28.70752716064453,
+            "range": "±0.00%",
+            "unit": "MB",
+            "extra": "1 samples"
+          },
+          {
+            "name": "compile findUnique (uncached baseline)",
+            "value": 8064,
+            "range": "±11.46%",
+            "unit": "ops/sec",
+            "extra": "95 samples"
+          },
+          {
+            "name": "compile findMany filtered (uncached baseline)",
+            "value": 6070,
+            "range": "±1.64%",
+            "unit": "ops/sec",
+            "extra": "91 samples"
+          },
+          {
+            "name": "compile blog post page (uncached baseline)",
+            "value": 1660,
+            "range": "±0.74%",
+            "unit": "ops/sec",
+            "extra": "95 samples"
+          },
+          {
+            "name": "parameterize findUnique",
+            "value": 458581,
+            "range": "±0.61%",
+            "unit": "ops/sec",
+            "extra": "91 samples"
+          },
+          {
+            "name": "parameterize findMany",
+            "value": 224208,
+            "range": "±0.62%",
+            "unit": "ops/sec",
+            "extra": "95 samples"
+          },
+          {
+            "name": "parameterize blog post page query",
+            "value": 157319,
+            "range": "±0.17%",
+            "unit": "ops/sec",
+            "extra": "94 samples"
+          },
+          {
+            "name": "findUnique by id",
+            "value": 4638,
+            "range": "±2.44%",
+            "unit": "ops/sec",
+            "extra": "78 samples"
+          },
+          {
+            "name": "findFirst with simple where",
+            "value": 5141,
+            "range": "±1.28%",
+            "unit": "ops/sec",
+            "extra": "82 samples"
+          },
+          {
+            "name": "findMany 10 records",
+            "value": 4854,
+            "range": "±2.11%",
+            "unit": "ops/sec",
+            "extra": "80 samples"
+          },
+          {
+            "name": "findMany with orderBy",
+            "value": 4815,
+            "range": "±1.17%",
+            "unit": "ops/sec",
+            "extra": "84 samples"
+          },
+          {
+            "name": "findMany with filter",
+            "value": 4892,
+            "range": "±0.74%",
+            "unit": "ops/sec",
+            "extra": "87 samples"
+          },
+          {
+            "name": "findMany with pagination",
+            "value": 5309,
+            "range": "±1.44%",
+            "unit": "ops/sec",
+            "extra": "85 samples"
+          },
+          {
+            "name": "findUnique with 1:1 include",
+            "value": 2815,
+            "range": "±1.53%",
+            "unit": "ops/sec",
+            "extra": "82 samples"
+          },
+          {
+            "name": "findUnique with 1:N include",
+            "value": 2476,
+            "range": "±1.15%",
+            "unit": "ops/sec",
+            "extra": "87 samples"
+          },
+          {
+            "name": "findUnique with nested includes",
+            "value": 1309,
+            "range": "±1.88%",
+            "unit": "ops/sec",
+            "extra": "86 samples"
+          },
+          {
+            "name": "findMany with includes",
+            "value": 1318,
+            "range": "±1.14%",
+            "unit": "ops/sec",
+            "extra": "89 samples"
+          },
+          {
+            "name": "findMany with select",
+            "value": 7330,
+            "range": "±1.10%",
+            "unit": "ops/sec",
+            "extra": "85 samples"
+          },
+          {
+            "name": "findMany with nested select",
+            "value": 3865,
+            "range": "±1.10%",
+            "unit": "ops/sec",
+            "extra": "84 samples"
+          },
+          {
+            "name": "findMany with OR filter",
+            "value": 4141,
+            "range": "±1.00%",
+            "unit": "ops/sec",
+            "extra": "87 samples"
+          },
+          {
+            "name": "findMany with complex filters",
+            "value": 3293,
+            "range": "±1.20%",
+            "unit": "ops/sec",
+            "extra": "89 samples"
+          },
+          {
+            "name": "findMany with contains filter",
+            "value": 3790,
+            "range": "±1.10%",
+            "unit": "ops/sec",
+            "extra": "87 samples"
+          },
+          {
+            "name": "count all",
+            "value": 7649,
+            "range": "±1.34%",
+            "unit": "ops/sec",
+            "extra": "86 samples"
+          },
+          {
+            "name": "count with filter",
+            "value": 6701,
+            "range": "±1.48%",
+            "unit": "ops/sec",
+            "extra": "84 samples"
+          },
+          {
+            "name": "aggregate sum/avg",
+            "value": 6327,
+            "range": "±1.07%",
+            "unit": "ops/sec",
+            "extra": "84 samples"
+          },
+          {
+            "name": "groupBy with count",
+            "value": 6456,
+            "range": "±1.12%",
+            "unit": "ops/sec",
+            "extra": "87 samples"
+          },
+          {
+            "name": "create single record",
+            "value": 3627,
+            "range": "±1.82%",
+            "unit": "ops/sec",
+            "extra": "85 samples"
+          },
+          {
+            "name": "create with nested",
+            "value": 1876,
+            "range": "±1.38%",
+            "unit": "ops/sec",
+            "extra": "81 samples"
+          },
+          {
+            "name": "update single record",
+            "value": 4556,
+            "range": "±1.30%",
+            "unit": "ops/sec",
+            "extra": "83 samples"
+          },
+          {
+            "name": "updateMany",
+            "value": 5945,
+            "range": "±1.04%",
+            "unit": "ops/sec",
+            "extra": "85 samples"
+          },
+          {
+            "name": "transaction sequential",
+            "value": 1718,
+            "range": "±2.04%",
+            "unit": "ops/sec",
+            "extra": "83 samples"
+          },
+          {
+            "name": "transaction batch",
+            "value": 1674,
+            "range": "±1.58%",
+            "unit": "ops/sec",
+            "extra": "85 samples"
+          },
+          {
+            "name": "blog post page query",
+            "value": 964,
+            "range": "±1.90%",
+            "unit": "ops/sec",
+            "extra": "85 samples"
+          },
+          {
+            "name": "blog listing page query",
+            "value": 1342,
+            "range": "±1.26%",
+            "unit": "ops/sec",
+            "extra": "85 samples"
+          },
+          {
+            "name": "user profile page query",
+            "value": 1340,
+            "range": "±1.05%",
+            "unit": "ops/sec",
+            "extra": "85 samples"
+          },
+          {
+            "name": "order history query",
+            "value": 2121,
+            "range": "±1.38%",
+            "unit": "ops/sec",
+            "extra": "86 samples"
+          },
+          {
+            "name": "product search query",
+            "value": 3825,
+            "range": "±1.07%",
+            "unit": "ops/sec",
+            "extra": "87 samples"
           }
         ]
       }
