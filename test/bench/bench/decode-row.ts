@@ -41,8 +41,6 @@ export function createWeightedWorkload<T extends { readonly name: string }>(
 ): T[] {
   const caseByName = new Map(cases.map((entry) => [entry.name, entry]));
   const mixTotal = Object.values(requestMix).reduce((sum, weight) => sum + weight, 0);
-  let cumulativeWeight = 0;
-  let allocatedResponses = 0;
 
   return Object.entries(requestMix).flatMap(([name, weight]) => {
     const entry = caseByName.get(name);
@@ -50,10 +48,7 @@ export function createWeightedWorkload<T extends { readonly name: string }>(
       throw new Error(`Request mix names unknown query "${name}"`);
     }
 
-    cumulativeWeight += weight;
-    const cumulativeResponses = Math.round((cumulativeWeight / mixTotal) * responseCount);
-    const entryResponses = cumulativeResponses - allocatedResponses;
-    allocatedResponses = cumulativeResponses;
+    const entryResponses = Math.round((weight / mixTotal) * responseCount);
     return Array.from({ length: entryResponses }, () => entry);
   });
 }
@@ -76,7 +71,11 @@ const db = postgres({ contractJson, url: 'postgres://bench@127.0.0.1:5432/bench'
 const plans = benchmarkPlans(db.sql);
 export const benchmarkCases = createBenchmarkCases(plans, rowsJson, db.context.contractCodecs);
 const caseByName = new Map(benchmarkCases.map((entry) => [entry.name, entry]));
-const mixedWorkload = createWeightedWorkload(benchmarkCases, REQUEST_MIX, MIX_RESPONSES);
+export const benchmarkWorkload = createWeightedWorkload(
+  benchmarkCases,
+  REQUEST_MIX,
+  MIX_RESPONSES,
+);
 
 export async function decodeResultSet(
   rows: readonly Row[],
@@ -140,10 +139,10 @@ async function main(): Promise<void> {
       await decodeResultSet(entry.rows, entry.decodeCtx);
     });
   }
-  const mixRows = mixedWorkload.reduce((sum, entry) => sum + entry.rows.length, 0);
+  const mixRows = benchmarkWorkload.reduce((sum, entry) => sum + entry.rows.length, 0);
   const mixBench = new Bench({ name: 'decodeRow — northwind request mix', time: 1500 });
-  mixBench.add(`${mixedWorkload.length} responses / ${mixRows} rows`, async () => {
-    for (const entry of mixedWorkload) {
+  mixBench.add(`${benchmarkWorkload.length} responses / ${mixRows} rows`, async () => {
+    for (const entry of benchmarkWorkload) {
       await decodeResultSet(entry.rows, entry.decodeCtx);
     }
   });
@@ -191,7 +190,9 @@ async function main(): Promise<void> {
         workload: task.name,
         'ms/batch': latency ? format(latency.mean, 2) : 'n/a',
         'rows/sec': latency ? format(mixRows / (latency.mean / 1e3), 0) : 'n/a',
-        'responses/sec': latency ? format(mixedWorkload.length / (latency.mean / 1e3), 0) : 'n/a',
+        'responses/sec': latency
+          ? format(benchmarkWorkload.length / (latency.mean / 1e3), 0)
+          : 'n/a',
         'rme %': latency ? format(latency.rme, 2) : 'n/a',
       };
     }),

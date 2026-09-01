@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import rowsJson from '../fixtures/rows.json' with { type: 'json' };
-import { benchmarkCases, createWeightedWorkload, decodeResultSet } from './decode-row';
+import {
+  benchmarkCases,
+  benchmarkWorkload,
+  createWeightedWorkload,
+  decodeResultSet,
+} from './decode-row';
 
 describe('decode row benchmark', () => {
   it('matches every benchmark plan to fixture rows', () => {
@@ -45,5 +50,23 @@ describe('decode row benchmark', () => {
       'occasional',
       'occasional',
     ]);
+  });
+
+  it('pins the original mixed benchmark workload', () => {
+    expect(benchmarkWorkload.map(({ name }) => name)).toEqual([
+      ...Array<string>(47).fill('orderWithDetails'),
+      ...Array<string>(47).fill('orderWithDetailsAndProducts'),
+      ...Array<string>(47).fill('productWithSupplier'),
+      ...Array<string>(23).fill('searchProduct'),
+      ...Array<string>(14).fill('supplierById'),
+      ...Array<string>(9).fill('customerById'),
+      ...Array<string>(5).fill('ordersWithDetails'),
+      ...Array<string>(2).fill('searchCustomer'),
+      ...Array<string>(2).fill('employeeWithRecipient'),
+      'products',
+      'customers',
+    ]);
+    expect(benchmarkWorkload).toHaveLength(198);
+    expect(benchmarkWorkload.reduce((rows, entry) => rows + entry.rows.length, 0)).toBe(1047);
   });
 });
