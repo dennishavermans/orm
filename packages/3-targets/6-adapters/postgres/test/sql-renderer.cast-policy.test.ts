@@ -5,11 +5,13 @@ import type { RuntimeExtensionDescriptor } from '@internal/framework-components/
 import {
   BinaryExpr,
   ColumnRef,
+  FunctionCallExpr,
   ParamRef,
   type ProjectionExpr,
   ProjectionItem,
   SelectAst,
   TableSource,
+  WindowFuncExpr,
 } from '@internal/sql-relational-core/ast';
 import { codecRefForStorageColumn } from '@internal/sql-relational-core/codec-descriptor-registry';
 import {
@@ -78,6 +80,13 @@ const baseContract = new SqlContractSerializer().deserializeContract({
                   nativeType: 'aal_level',
                   nullable: false,
                   typeParams: { typeName: 'aal_level' },
+                },
+                tags: { codecId: 'pg/text@1', nativeType: 'text', nullable: false, many: true },
+                tagList: {
+                  codecId: 'app/test-foo@1',
+                  nativeType: 'foo',
+                  nullable: false,
+                  many: true,
                 },
               },
               uniques: [],
@@ -169,24 +178,76 @@ describe('renderLoweredSql cast policy', () => {
     expect(lowered.sql).toBe('SELECT "user"."id" AS "id" FROM "user" WHERE "user"."score" = $1');
   });
 
-  it('casts scalar arrays even when their element native type is inferrable', () => {
+  it('emits plain $N for an array param whose element native type is inferrable, in comparison position (issue #30165)', () => {
     const ast = SelectAst.from(TableSource.named('user'))
       .withProjection([ProjectionItem.of('id', ColumnRef.of('user', 'id'))])
       .withWhere(
         BinaryExpr.eq(
-          ColumnRef.of('user', 'score'),
-          ParamRef.of([1, 2], {
-            name: 'scores',
-            codec: { codecId: 'pg/int4@1', many: true },
+          ColumnRef.of('user', 'tags'),
+          ParamRef.of(['a', 'b'], {
+            name: 'tags',
+            codec: { codecId: 'pg/text@1', many: true },
           }),
         ),
       );
 
     const lowered = renderLoweredSql(ast, baseContract, postgresCodecDescriptorRegistry);
 
+    expect(lowered.sql).toBe('SELECT "user"."id" AS "id" FROM "user" WHERE "user"."tags" = $1');
+  });
+
+  it('emits $N::<nativeType>[] for an array param whose element native type is outside the inferrable set, even in comparison position (issue #30165)', () => {
+    const registry = buildPostgresCodecDescriptorRegistry([descriptorFor('app/test-foo@1', 'foo')]);
+    const ast = SelectAst.from(TableSource.named('user'))
+      .withProjection([ProjectionItem.of('id', ColumnRef.of('user', 'id'))])
+      .withWhere(
+        BinaryExpr.eq(
+          ColumnRef.of('user', 'tagList'),
+          ParamRef.of(['a', 'b'], {
+            name: 'tagList',
+            codec: { codecId: 'app/test-foo@1', many: true },
+          }),
+        ),
+      );
+
+    const lowered = renderLoweredSql(ast, baseContract, registry);
+
     expect(lowered.sql).toBe(
-      'SELECT "user"."id" AS "id" FROM "user" WHERE "user"."score" = $1::integer[]',
+      'SELECT "user"."id" AS "id" FROM "user" WHERE "user"."tagList" = $1::foo[]',
     );
+  });
+
+  it('forces the array cast for a many param used as a bare FunctionCallExpr argument, regardless of element-type inferrability (issue #30165)', () => {
+    const ast = SelectAst.from(TableSource.named('user')).withProjection([
+      ProjectionItem.of(
+        'result',
+        FunctionCallExpr.of('some_fn', [
+          ParamRef.of(['a', 'b'], { name: 'tags', codec: { codecId: 'pg/text@1', many: true } }),
+        ]),
+      ),
+    ]);
+
+    const lowered = renderLoweredSql(ast, baseContract, postgresCodecDescriptorRegistry);
+
+    expect(lowered.sql).toBe('SELECT some_fn($1::text[]) AS "result" FROM "user"');
+  });
+
+  it('forces the array cast for a many param used as a bare WindowFuncExpr argument, regardless of element-type inferrability (issue #30165)', () => {
+    const ast = SelectAst.from(TableSource.named('user')).withProjection([
+      ProjectionItem.of(
+        'result',
+        new WindowFuncExpr({
+          fn: 'row_number',
+          args: [
+            ParamRef.of(['a', 'b'], { name: 'tags', codec: { codecId: 'pg/text@1', many: true } }),
+          ],
+        }),
+      ),
+    ]);
+
+    const lowered = renderLoweredSql(ast, baseContract, postgresCodecDescriptorRegistry);
+
+    expect(lowered.sql).toBe('SELECT ROW_NUMBER($1::text[]) OVER () AS "result" FROM "user"');
   });
 
   it('resolves parameterized descriptors without requiring an id-keyed codec representative', () => {

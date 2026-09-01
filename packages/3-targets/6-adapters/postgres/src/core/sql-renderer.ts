@@ -56,6 +56,14 @@ import type { PostgresContract } from './types';
  * `json` / `jsonb` are intentionally excluded despite being Postgres builtins: their operator overloads make context inference unreliable in expression positions (e.g. `$1 -> 'key'` is ambiguous between the two).
  *
  * Spellings match the target descriptors' `nativeTypeFor` results, not the `udt_name` abbreviations that ADR 205 used as illustrative shorthand. The registry-based cast policy compares against these strings directly.
+ *
+ * Array (`many: true`) parameters are position-dependent (issue #30165). In comparison/assignment position (`col = $1`, `INSERT ... VALUES ($1)`) they follow this same inferrable-type rule as scalars and emit bare `$N` — Postgres derives the type from the target column, same as it does for a scalar bound against an enum column. The one exception is a bare function-call argument position: `unnest($1)` (`FunctionSource` args) and `FunctionCallExpr`/`WindowFuncExpr` args. There is no adjacent operand to fix the type from in that position, and a genuinely polymorphic function like `unnest(anyarray)` cannot resolve an `unknown`-typed argument at all ("could not determine polymorphic type because input has type unknown") — this is specific to polymorphic functions, not a general "function arguments can't infer" rule: a non-polymorphic function called with a scalar `unknown` param (e.g. `concat($1, ...)`) resolves fine from its one candidate signature and stays uncast. `renderFunctionArgExpr` forces the array cast (`forceArrayCast`) at exactly those call sites regardless of element-type inferrability; it is a no-op for scalar (non-`many`) params. `renderAggregateExpr` is deliberately exempt from `renderFunctionArgExpr`: an aggregate's argument is always a per-row scalar expression in this codebase's operation surface, never a caller-bound whole-array parameter, so no `many`-typed `ParamRef` reaches it.
+ *
+ * `OperationExpr` (`renderOperation`) is a known gap, deliberately left unforced: `lowering.strategy` ('infix' | 'function') classifies the *authoring surface* (method-style vs operator-style on the builder), not the emitted SQL shape, so it cannot be used to decide whether `self`/`args` sit in a function-call position. `'{{self}} <=> {{arg0}}'` (pgvector) and `'{{self}} @@@ {{arg0}}'` (paradedb) are both tagged `'function'` despite being binary operators, while `'{{self}} ILIKE {{arg0}}'` is tagged `'infix'` — the opposite of what the names suggest. No operation in this codebase declares an array-typed `self` or argument today, so this is currently inert; if one ever does, `renderOperation` needs its own position information (not `lowering.strategy`) before it can safely force a cast.
+ *
+ * An array parameter whose element `nativeType` is itself outside this set (e.g. `jsonb[]`, `vector[]`) still casts in every position — the function-argument exception above only changes the *inferrable* case.
+ *
+ * ADR 205 predates array parameters and lists them as out of scope (see "Out of scope"); this comment is the only existing record of the policy above and needs folding into the ADR as an owner-approved amendment.
  */
 const POSTGRES_INFERRABLE_NATIVE_TYPES: ReadonlySet<string> = new Set([
   // Numeric
@@ -89,6 +97,7 @@ function renderTypedParam(
   codecDescriptorRegistry: PostgresCodecDescriptorRegistry,
   many?: boolean,
   typeParams?: JsonValue,
+  forceArrayCast?: boolean,
 ): string {
   if (codecId === undefined) {
     return `$${index}`;
@@ -116,7 +125,7 @@ function renderTypedParam(
   if (isPgEnumParams(typeParams)) {
     return `$${index}::${quoteQualifiedName(nativeType)}${arraySuffix}`;
   }
-  if (!POSTGRES_INFERRABLE_NATIVE_TYPES.has(nativeType) || many) {
+  if (!POSTGRES_INFERRABLE_NATIVE_TYPES.has(nativeType) || (many && forceArrayCast)) {
     return `$${index}::${nativeType}${arraySuffix}`;
   }
   return `$${index}`;
@@ -479,7 +488,7 @@ function renderSource(
     case 'derived-table-source':
       return `(${renderSelect(node.query, contract, pim)}) AS ${quoteIdentifier(node.alias)}`;
     case 'function-source': {
-      const args = node.args.map((arg) => renderExpr(arg, contract, pim)).join(', ');
+      const args = node.args.map((arg) => renderFunctionArgExpr(arg, contract, pim)).join(', ');
       const call = `${node.fn}(${args})`;
       const ordinality = node.ordinality ? ' WITH ORDINALITY' : '';
       const alias = node.alias === undefined ? '' : ` AS ${quoteIdentifier(node.alias)}`;
@@ -658,7 +667,7 @@ function renderWindowFuncExpr(
   pim: ParamIndexMap,
 ): string {
   const fn = expr.fn.toUpperCase();
-  const args = expr.args.map((arg) => renderExpr(arg, contract, pim)).join(', ');
+  const args = expr.args.map((arg) => renderFunctionArgExpr(arg, contract, pim)).join(', ');
   const partitionClause =
     expr.partitionBy && expr.partitionBy.length > 0
       ? `PARTITION BY ${expr.partitionBy.map((e) => renderExpr(e, contract, pim)).join(', ')}`
@@ -676,7 +685,7 @@ function renderFunctionCallExpr(
   contract: PostgresContract,
   pim: ParamIndexMap,
 ): string {
-  const args = expr.args.map((arg) => renderExpr(arg, contract, pim)).join(', ');
+  const args = expr.args.map((arg) => renderFunctionArgExpr(arg, contract, pim)).join(', ');
   return `${expr.fn}(${args})`;
 }
 
@@ -837,7 +846,7 @@ function renderExpr(expr: AnyExpression, contract: PostgresContract, pim: ParamI
   }
 }
 
-function renderParamRef(ref: AnyParamRef, pim: ParamIndexMap): string {
+function renderParamRef(ref: AnyParamRef, pim: ParamIndexMap, forceArrayCast?: boolean): string {
   const index = pim.indexMap.get(ref);
   if (index === undefined) {
     throw new InternalError('ParamRef not found in index map');
@@ -849,6 +858,7 @@ function renderParamRef(ref: AnyParamRef, pim: ParamIndexMap): string {
       pim.codecDescriptorRegistry,
       ref.codec.many,
       ref.codec.typeParams,
+      forceArrayCast,
     );
   }
   if (ref.codec === undefined) {
@@ -866,7 +876,19 @@ function renderParamRef(ref: AnyParamRef, pim: ParamIndexMap): string {
     pim.codecDescriptorRegistry,
     ref.codec.many,
     ref.codec.typeParams,
+    forceArrayCast,
   );
+}
+
+function renderFunctionArgExpr(
+  expr: AnyExpression,
+  contract: PostgresContract,
+  pim: ParamIndexMap,
+): string {
+  if (expr.kind === 'param-ref' || expr.kind === 'prepared-param-ref') {
+    return renderParamRef(expr, pim, true);
+  }
+  return renderExpr(expr, contract, pim);
 }
 
 function renderLiteral(expr: LiteralExpr): string {
