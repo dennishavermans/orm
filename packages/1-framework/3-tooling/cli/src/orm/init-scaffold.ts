@@ -201,7 +201,7 @@ function planScaffold(ctx: {
 
   if (existsSync(join(cwd, ENV_EXAMPLE_FILE))) {
     warnings.push(
-      `${ENV_EXAMPLE_FILE} already existed and was replaced with the Prisma Next template.`,
+      `${ENV_EXAMPLE_FILE} already existed and was replaced with the Prisma 8 template.`,
     );
   }
 
