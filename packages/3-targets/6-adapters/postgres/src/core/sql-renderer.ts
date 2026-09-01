@@ -39,7 +39,7 @@ import {
   type WindowFuncExpr,
 } from '@internal/sql-relational-core/ast';
 import type { PostgresCodecDescriptorRegistry } from '@internal/target-postgres/codec-descriptor';
-import { isPgEnumParams } from '@internal/target-postgres/codecs';
+import { isPgEnumParams, pgEnumDescriptor } from '@internal/target-postgres/codecs';
 import {
   escapeLiteral,
   quoteIdentifier,
@@ -368,6 +368,10 @@ function renderOrderByExpr(
   return renderExpr(expr, contract, pim);
 }
 
+function projectsNativeEnumArray(codec: CodecRef | undefined): boolean {
+  return codec?.many === true && codec.codecId === pgEnumDescriptor.codecId;
+}
+
 function renderProjection(
   projection: ReadonlyArray<ProjectionItem>,
   contract: PostgresContract,
@@ -379,7 +383,9 @@ function renderProjection(
       if (item.expr.kind === 'literal') {
         return `${renderLiteral(item.expr)} AS ${alias}`;
       }
-      return `${renderExpr(item.expr, contract, pim)} AS ${alias}`;
+      const rendered = renderExpr(item.expr, contract, pim);
+      const cast = projectsNativeEnumArray(item.codec) ? '::text[]' : '';
+      return `${rendered}${cast} AS ${alias}`;
     })
     .join(', ');
 }
@@ -392,8 +398,9 @@ function renderReturning(
   return items
     .map((item) => {
       if (item.expr.kind === 'column-ref') {
-        const rendered = renderColumn(item.expr);
-        return item.expr.column === item.alias
+        const cast = projectsNativeEnumArray(item.codec) ? '::text[]' : '';
+        const rendered = `${renderColumn(item.expr)}${cast}`;
+        return item.expr.column === item.alias && cast === ''
           ? rendered
           : `${rendered} AS ${quoteIdentifier(item.alias)}`;
       }
