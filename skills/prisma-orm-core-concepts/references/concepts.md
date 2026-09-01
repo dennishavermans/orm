@@ -48,7 +48,7 @@ The two sides verify each other: the runtime compares the contract hash against 
 A **plan** is the compiled form of a query: a plain data object holding the statement to run, its parameters, and metadata about what the query touches. Every query — whichever API authored it — becomes a plan before execution. The SQL builder shows this explicitly:
 
 ```typescript
-const plan = db.sql.user
+const plan = db.sql.public.user
   .select('id', 'name')
   .where((f, fns) => fns.eq(f.active, true))
   .limit(10)
@@ -70,7 +70,7 @@ Raw results bypass codec decoding — values arrive as the driver returns them. 
 
 ## The stack behind one package
 
-A project installs **one façade package per target** — `@prisma/orm-postgres`, `@prisma/orm-sqlite`, or `@prisma/orm-mongo` — and user code imports only the façade subpaths (`@internal/postgres/config`, `@internal/postgres/runtime`, …). Behind the façade sit the layers: the database **family** (SQL or document), the **target** dialect (Postgres), the **adapter** (translates plans to the dialect), and the **driver** (holds the connection). The layering exists for extensibility — Prisma 8's core is small, and everything around it, Postgres support included, plugs in through the same public interfaces. Supporting a new database means new target, adapter, and driver implementations, not a fork of the core.
+A project installs **one façade package per target** — `@prisma/orm-postgres`, `@prisma/orm-sqlite`, or `@prisma/orm-mongo` — and user code imports only the façade subpaths (`@prisma/orm-postgres/config`, `@prisma/orm-postgres/runtime`, …). Behind the façade sit the layers: the database **family** (SQL or document), the **target** dialect (Postgres), the **adapter** (translates plans to the dialect), and the **driver** (holds the connection). The layering exists for extensibility — Prisma 8's core is small, and everything around it, Postgres support included, plugs in through the same public interfaces. Supporting a new database means new target, adapter, and driver implementations, not a fork of the core.
 
 ## Capabilities
 
@@ -85,13 +85,16 @@ A **codec** converts values between JavaScript and the database's wire format, i
 An **extension** is an installable package that adds capability to the whole toolchain: new column types with their codecs, query operations, index kinds. Registered once in `prisma.config.ts`:
 
 ```typescript
-import pgvector from '@internal/extension-pgvector/control';
-import { defineConfig } from '@internal/postgres/config';
+import { definePrismaConfig } from '@prisma/cli-engine';
+import pgvector from '@prisma/orm-extension-pgvector/control';
+import { defineConfig as ormConfig } from '@prisma/orm-postgres/config';
 
-export default defineConfig({
-  contract: './src/prisma/contract.prisma',
-  extensions: [pgvector],
-  db: { connection: process.env.DATABASE_URL },
+export default definePrismaConfig({
+  orm: ormConfig({
+    contract: './src/prisma/contract.prisma',
+    extensions: [pgvector],
+    db: { connection: process.env.DATABASE_URL },
+  }),
 });
 ```
 
@@ -99,7 +102,7 @@ After registration the extension's types appear in the contract language (`pgvec
 
 ## Middleware
 
-A **middleware** is a plain object with a name and one or more hooks that run around every query. Registered once in `db.ts`, it sees the structured plan object — so it can log, enforce limits, or reject before anything executes. Built-in middleware includes telemetry, `lints` (blocks risky query shapes), and `budgets` (row/latency caps); a cache middleware ships as an extension package. Composition and custom middleware are covered in this skill's `references/runtime.md`.
+A **middleware** is a plain object with a name and one or more hooks that run around every query. Registered once in `db.ts`, it sees the structured plan object — so it can log, enforce limits, or reject before anything executes. Built-in middleware includes `lints` (blocks risky query shapes) and `budgets` (row/latency caps); a cache middleware ships as an extension package (`@prisma/orm-extension-middleware-cache`). Telemetry/logging is a small custom middleware you write yourself. Composition and custom middleware are covered in this skill's `references/runtime.md`.
 
 ## Migrations: a graph of contracts
 

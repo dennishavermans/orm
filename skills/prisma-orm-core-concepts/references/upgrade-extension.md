@@ -2,7 +2,7 @@
 
 This reference upgrades a project that **is** a Prisma 8 extension — a package that consumes the framework SPI (`@internal/contract`, `@internal/framework-components`, `@internal/migration-tools`, etc.) and exposes contract / middleware / codec / migration surfaces that downstream apps install via `prisma.config.ts`.
 
-If the project you are upgrading is a consumer **app** (it imports `@internal/postgres` or `@internal/mongo` from its application code), use [`upgrade-app.md`](upgrade-app.md) instead — or both, if the repo contains both a consumer app and an extension package, in which case run the app flow first then this one in the same session.
+If the project you are upgrading is a consumer **app** (it imports `@prisma/orm-postgres` or `@prisma/orm-mongo` from its application code), use [`upgrade-app.md`](upgrade-app.md) instead — or both, if the repo contains both a consumer app and an extension package, in which case run the app flow first then this one in the same session.
 
 The per-transition instructions this reference reads live under [`../upgrading/extension/upgrades/`](../upgrading/extension/upgrades/).
 

@@ -1,6 +1,6 @@
 # Upgrade Prisma 8 (user app)
 
-This reference upgrades a project that **consumes** Prisma 8 via the public package API (`@internal/postgres`, `@internal/mongo`, the contract files in `prisma/`, etc.). If the project is itself a Prisma 8 *extension*, use [`upgrade-extension.md`](upgrade-extension.md) instead — or both, if the repo contains both an app and an extension package.
+This reference upgrades a project that **consumes** Prisma 8 via the public package API (`@prisma/orm-postgres`, `@prisma/orm-mongo`, the contract files in `prisma/`, etc.). If the project is itself a Prisma 8 *extension*, use [`upgrade-extension.md`](upgrade-extension.md) instead — or both, if the repo contains both an app and an extension package.
 
 The per-transition instructions this reference reads live under [`../upgrading/app/upgrades/`](../upgrading/app/upgrades/).
 
@@ -31,15 +31,15 @@ Once the pre-flight has established the target is reachable, do the version bump
 
 This flow applies when the project **consumes** Prisma Next:
 
-- `package.json` declares one or more `@internal/*` packages under `dependencies` / `devDependencies`, and
+- `package.json` declares one or more `@prisma/orm-*` packages under `dependencies` / `devDependencies`, and
 - the package is *not* itself an extension (no `@internal/contract` (or other SPI) under `dependencies`/`peerDependencies`; name does not match `^@.*/extension-`; not referenced from a sibling app's `prisma.config.ts`).
 
 If the project also matches the extension-author role, run **this** flow first and then [`upgrade-extension.md`](upgrade-extension.md) in the same session. If detection is ambiguous, ask the user.
 
 ## Version detection
 
-- **From-version.** Read the currently-installed Prisma Next version from `pnpm-lock.yaml` (or `package-lock.json` / `yarn.lock`) by inspecting the resolved version of any `@internal/*` package. If the lockfile shows multiple `@internal/*` packages at different minors (already broken), the **lowest** minor is the from-version.
-- **To-version.** Either the version the user specified, or whatever `npm view @internal/postgres dist-tags.latest` reports. Do not assume that is a stable version: while Prisma 8 is a release candidate, `latest` tracks the newest release, `8.0.0-rc.N` included. If the user wants a stable version specifically, they must name it.
+- **From-version.** Read the currently-installed Prisma Next version from `pnpm-lock.yaml` (or `package-lock.json` / `yarn.lock`) by inspecting the resolved version of any `@prisma/orm-*` package. If the lockfile shows multiple `@prisma/orm-*` packages at different minors (already broken), the **lowest** minor is the from-version.
+- **To-version.** Either the version the user specified, or whatever `npm view @prisma/orm-postgres dist-tags.latest` reports. Do not assume that is a stable version: while Prisma 8 is a release candidate, `latest` tracks the newest release, `8.0.0-rc.N` included. If the user wants a stable version specifically, they must name it.
 
 Report both back to the user before continuing.
 
@@ -61,7 +61,7 @@ The chain order does not depend on which extensions are installed; the pre-fligh
 
 For each `(from, to)` step in the chain:
 
-1. **Bump `@internal/*` deps.** Rewrite every `@internal/*` entry in the project's `package.json` to the exact `<to>` version (no caret, no tilde). All entries advance to the same version. Cover `dependencies` and `devDependencies`. The skill itself ships inside the Prisma packages, so bumping them is what updates it; there is no separate skill package to bump.
+1. **Bump `@prisma/orm-*` deps.** Rewrite every `@prisma/orm-*` entry in the project's `package.json` to the exact `<to>` version (no caret, no tilde). All entries advance to the same version. Cover `dependencies` and `devDependencies`. The skill itself ships inside the Prisma packages, so bumping them is what updates it; there is no separate skill package to bump.
 
 2. **Install.** Run `pnpm install` (or the project's lockfile-managing command). The project's code is now broken against the new types — the upgrade instructions for `<from> → <to>` exist to fix it.
 
@@ -83,7 +83,7 @@ For each `(from, to)` step in the chain:
 6. **Commit.** One commit per step containing the `package.json` bump, lockfile churn, and any source rewrites:
 
    ```text
-   chore: upgrade @internal/* to <to-version>
+   chore: upgrade @prisma/orm-* to <to-version>
    ```
 
    (Or the project's own commit-message convention.) Never squash steps. The user may squash on merge; the in-flight history must be per-step so a failed step is bisectable.
